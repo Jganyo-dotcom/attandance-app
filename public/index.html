@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Attendance App Admin</title>
+    <style>
+      /* ensure the mobile open button is visible on small screens */
+      @media (max-width: 820px) {
+        #openAdminModal {
+          display: inline-block !important;
+        }
+      }
+
+      /* Admin panels */
+      .admin-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .panel {
+        background: #0b1220;
+        border: 1px solid #374151;
+        border-radius: 10px;
+        padding: 12px;
+      }
+      .panel h3,
+      .panel h4 {
+        color: #93c5fd;
+        margin: 0 0 8px 0;
+      }
+      .list-placeholder .meta {
+        color: #93c5fd;
+      }
+
+      /* Action buttons inside cards */
+      .admin-action {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .admin-btn {
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: none;
+        color: #fff;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .admin-btn.approve {
+        background: #10b981;
+      }
+      .admin-btn.block {
+        background: #ef4444;
+      }
+      .admin-btn.unblock {
+        background: #6b7280;
+      }
+      .admin-btn.reset {
+        background: #f59e0b;
+      }
+
+      /* Loader */
+      .admin-loader {
+        border: 3px solid #374151;
+        border-top: 3px solid #10b981;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+        margin-left: 8px;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Mobile modal tweaks */
+      .admin-modal-content {
+        max-width: 720px;
+        width: 100%;
+        background: #111827;
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .mobile-only {
+        display: none;
+      }
+      @media (max-width: 820px) {
+        .admin-grid {
+          display: block;
+        }
+        .desktop-only {
+          display: none;
+        }
+        .mobile-only {
+          display: inline-block;
+        }
+        #adminApprovalPanel {
+          display: none;
+        } /* hide desktop panel on mobile */
+        .modal.hidden {
+          display: none;
+        }
+        .modal {
+          display: flex;
+          justify-content: center;
+          align-items: flex-end;
+          background: rgba(2, 6, 23, 0.7);
+          position: fixed;
+          inset: 0;
+          z-index: 999;
+        }
+        .admin-modal-content {
+          border-top: 4px solid #2563eb;
+          border-radius: 12px 12px 0 0;
+        }
+      }
+
+      /* Base layout and theme (keeps your original look) */
+      :root {
+        --bg: #0f172a;
+        --panel: #111827;
+        --card: #0b1220;
+        --muted: #93c5fd;
+        --accent: #2563eb;
+        --success: #10b981;
+        --danger: #ef4444;
+        --border: #374151;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: system-ui, Arial, sans-serif;
+        background: var(--bg);
+        color: #e5e7eb;
+      }
+      .container {
+        max-width: 980px;
+        margin: 32px auto;
+        padding: 20px;
+        background: var(--panel);
+        border-radius: 12px;
+        box-sizing: border-box;
+      }
+      h1 {
+        color: var(--muted);
+        margin: 0 0 16px 0;
+      }
+      section {
+        margin-top: 20px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin: 8px 0;
+        align-items: center;
+      }
+      input,
+      select,
+      button {
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: #e5e7eb;
+      }
+      button {
+        cursor: pointer;
+        background: var(--accent);
+        border: none;
+      }
+      button:hover {
+        background: #1d4ed8;
+      }
+      p {
+        color: var(--muted);
+        margin: 8px 0;
+      }
+      .hidden {
+        display: none;
+      }
+
+      /* Cards */
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px;
+        margin: 12px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      /* Admin action buttons */
+      .actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .btn {
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: none;
+        color: #fff;
+        cursor: pointer;
+      }
+      .btn-block {
+        background: #ef4444;
+      }
+      .btn-unblock {
+        background: #6b7280;
+      } /* neutral */
+      .btn-verify {
+        background: #10b981;
+      }
+      .btn-unverify {
+        background: #6b7280;
+      }
+      .btn-reset {
+        background: #f59e0b;
+      }
+
+      /* Loader */
+      .loader {
+        border: 4px solid var(--border);
+        border-top: 4px solid var(--success);
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        animation: spin 0.8s linear infinite;
+        display: inline-block;
+        vertical-align: middle;
+        margin-left: 8px;
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Status messages */
+      .status {
+        margin-top: 8px;
+        color: var(--muted);
+      }
+      .status.success {
+        color: var(--success);
+      }
+      .status.error {
+        color: var(--danger);
+      }
+
+      /* Responsive */
+      @media (max-width: 720px) {
+        .row {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .actions {
+          flex-wrap: wrap;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Attendance App</h1>
+
+      <!-- Authentication -->
+      <div id="authWrapper">
+        <section id="loginSection">
+          <h2>Login</h2>
+          <div class="row">
+            <input id="loginMain" type="text" placeholder="Email or Username" />
+            <input id="loginPassword" type="password" placeholder="Password" />
+          </div>
+          <div class="row">
+            <button id="loginBtn">Login</button>
+            <button
+              id="showRegisterBtn"
+              class="btn"
+              style="background: #374151"
+            >
+              Register
+            </button>
+          </div>
+          <p id="loginStatus" class="status"></p>
+        </section>
+
+        <section id="registerSection" class="hidden">
+          <h2>Register</h2>
+          <div class="row">
+            <input id="regName" type="text" placeholder="Full Name" />
+            <input id="regUsername" type="text" placeholder="Username" />
+          </div>
+          <div class="row">
+            <input id="regEmail" type="email" placeholder="Email" />
+          </div>
+          <div class="row">
+            <input id="regPassword" type="password" placeholder="Password" />
+          </div>
+          <div class="row">
+            <input
+              id="CPassword"
+              type="password"
+              placeholder="Password again"
+            />
+          </div>
+          <div class="row">
+            <button id="registerBtn">Register</button>
+            <button id="showLoginBtn" class="btn" style="background: #374151">
+              Back to Login
+            </button>
+          </div>
+          <p id="registerStatus" class="status"></p>
+        </section>
+      </div>
+
+      <!-- Main app area -->
+      <section id="mainApp" class="hidden">
+        <h2>Welcome <span id="userName"></span></h2>
+        <div class="row">
+          <button id="logoutBtn" class="btn" style="background: #ef4444">
+            Logout
+          </button>
+          <span id="mainStatus" class="status"></span>
+        </div>
+
+        <!-- Admin Dashboard -->
+        <section id="adminSection" class="hidden">
+          <h2>Admin Dashboard</h2>
+          <p class="status">
+            Manage staff accounts: block/unblock, verify/unverify, reset
+            attempts.
+          </p>
+          <div id="staffList"></div>
+          <p id="adminStatus" class="status"></p>
+        </section>
+        <!-- Admin approvals / blocked panel (desktop) -->
+        <div id="adminApprovalPanel" class="hidden">
+          <section class="admin-grid">
+            <div class="panel" id="pendingPanel">
+              <h3>Pending Approvals</h3>
+              <div id="pendingList" class="list-placeholder">Loading…</div>
+            </div>
+
+            <div class="panel" id="blockedPanel">
+              <h3>Blocked Accounts</h3>
+              <div id="blockedList" class="list-placeholder">Loading…</div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Mobile: bottom-sheet modal (open via button) -->
+        <button id="openAdminModal" class="mobile-only hidden">
+          Admin Panel
+        </button>
+
+        <div id="adminModal" class="modal hidden">
+          <div class="modal-content admin-modal-content">
+            <div class="modal-header">
+              <h3>Admin Panel</h3>
+              <button id="closeAdminModal" class="close">×</button>
+            </div>
+
+            <div class="panel">
+              <h4>Pending Approvals</h4>
+              <div id="pendingListMobile" class="list-placeholder">
+                Loading…
+              </div>
+            </div>
+
+            <div class="panel">
+              <h4>Blocked Accounts</h4>
+              <div id="blockedListMobile" class="list-placeholder">
+                Loading…
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Placeholder for other user features -->
+        <section id="userSection">
+          <h2>Your Data</h2>
+          <div id="userData" class="card">
+            <div>
+              <div class="meta">
+                Your account details will appear here after login.
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <script>
+      // Configuration - change baseApi if your API is hosted elsewhere
+      const baseApi = "http://127.0.0.1:4444/"; // e.g. "https://api.example.com" or "" for same origin
+
+      // Elements
+      const loginSection = document.getElementById("loginSection");
+      const registerSection = document.getElementById("registerSection");
+      const mainApp = document.getElementById("mainApp");
+      const adminSection = document.getElementById("adminSection");
+      const staffListEl = document.getElementById("staffList");
+      const adminStatus = document.getElementById("adminStatus");
+      const loginStatus = document.getElementById("loginStatus");
+      const registerStatus = document.getElementById("registerStatus");
+      const mainStatus = document.getElementById("mainStatus");
+      const userNameEl = document.getElementById("userName");
+      const userDataEl = document.getElementById("userData");
+
+      // Toggle UI
+      document.getElementById("showRegisterBtn").onclick = (e) => {
+        e.preventDefault();
+        loginSection.classList.add("hidden");
+        registerSection.classList.remove("hidden");
+        clearStatus();
+      };
+      document.getElementById("showLoginBtn").onclick = (e) => {
+        e.preventDefault();
+        registerSection.classList.add("hidden");
+        loginSection.classList.remove("hidden");
+        clearStatus();
+      };
+
+      // Helpers
+      function setStatus(el, text, type) {
+        el.textContent = text || "";
+        el.classList.remove("success", "error");
+        if (type === "success") el.classList.add("success");
+        if (type === "error") el.classList.add("error");
+      }
+      function clearStatus() {
+        setStatus(loginStatus, "");
+        setStatus(registerStatus, "");
+        setStatus(adminStatus, "");
+        setStatus(mainStatus, "");
+      }
+      function token() {
+        return localStorage.getItem("token");
+      }
+      function authHeaders() {
+        const t = token();
+        return t
+          ? { Authorization: "Bearer " + t, "Content-Type": "application/json" }
+          : { "Content-Type": "application/json" };
+      }
+      function createLoader() {
+        const s = document.createElement("span");
+        s.className = "loader";
+        return s;
+      }
+
+      // Login
+      document.getElementById("loginBtn").onclick = async () => {
+        clearStatus();
+        const main = document.getElementById("loginMain").value.trim();
+        const password = document.getElementById("loginPassword").value;
+        if (!main || !password) {
+          setStatus(loginStatus, "Enter credentials", "error");
+          return;
+        }
+
+        setStatus(loginStatus, "Logging in...");
+        try {
+          const res = await fetch(baseApi + "api/guest/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ main, password }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            setStatus(loginStatus, data.message || "Login failed", "error");
+            return;
+          }
+          // Expect backend to return { token, user }
+          localStorage.setItem("token", data.token);
+          setStatus(loginStatus, "Login successful", "success");
+          await afterLogin(data.safe_user || null);
+        } catch (err) {
+          setStatus(loginStatus, "Network error during login", "error");
+        }
+      };
+
+      // Register
+      document.getElementById("registerBtn").onclick = async () => {
+        clearStatus();
+        const name = document.getElementById("regName").value.trim();
+        const username = document.getElementById("regUsername").value.trim();
+        const email = document.getElementById("regEmail").value.trim();
+        const password = document.getElementById("regPassword").value;
+        const confirm_password = document.getElementById("CPassword").value;
+        if (!name || !username || !email || !password || !confirm_password) {
+          setStatus(registerStatus, "Fill required fields", "error");
+          return;
+        }
+
+        setStatus(registerStatus, "Registering...");
+        try {
+          const res = await fetch(baseApi + "api/guest/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name,
+              username,
+              email,
+              confirm_password,
+              password,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            setStatus(
+              registerStatus,
+              data.message || "Registration failed",
+              "error",
+            );
+            return;
+          }
+          setStatus(
+            registerStatus,
+            "Registration successful. Please login.",
+            "success",
+          );
+          // Switch to login view
+          registerSection.classList.add("hidden");
+          loginSection.classList.remove("hidden");
+        } catch (err) {
+          setStatus(
+            registerStatus,
+            "Network error during registration",
+            "error",
+          );
+        }
+      };
+
+      // After login: fetch profile and show UI
+      async function afterLogin(userFromResponse) {
+        // If backend returned user, use it; otherwise fetch /api/auth/me
+        let user = userFromResponse;
+        if (!user) {
+          try {
+            const res = await fetch(baseApi + "api/guest/login", {
+              headers: authHeaders(),
+            });
+            if (res.ok) user = await res.json();
+          } catch (err) {
+            /* ignore */
+          }
+        }
+
+        // Show main app
+        loginSection.classList.add("hidden");
+        registerSection.classList.add("hidden");
+        mainApp.classList.remove("hidden");
+        userNameEl.textContent = user
+          ? user.name || user.username || "User"
+          : "User";
+
+        // Show user data card
+        userDataEl.innerHTML = `
+        <div>
+          <div class="meta">Email: ${user?.email || "—"}</div>
+          <div class="meta">Role: ${user?.role || user?.type || "user"}</div>
+          <div class="meta">Status: ${user?.disabled ? "Blocked" : "Active"}</div>
+        </div>
+      `;
+
+        // If admin, show admin dashboard
+        const isAdmin =
+          user &&
+          (user.role === "admin" ||
+            user.isAdmin === true ||
+            user.type === "admin");
+        if (isAdmin) {
+          adminSection.classList.remove("hidden");
+          await fetchStaff();
+        } else {
+          adminSection.classList.add("hidden");
+        }
+      }
+
+      // Logout
+      document.getElementById("logoutBtn").onclick = () => {
+        localStorage.removeItem("token");
+        mainApp.classList.add("hidden");
+        loginSection.classList.remove("hidden");
+        adminSection.classList.add("hidden");
+        setStatus(mainStatus, "Logged out");
+      };
+
+      // Fetch staff list from backend
+      async function fetchStaff() {
+        staffListEl.innerHTML = "";
+        adminStatus.textContent = "";
+        const loader = createLoader();
+        staffListEl.appendChild(loader);
+
+        try {
+          const res = await fetch(baseApi + "/api/staff", {
+            headers: authHeaders(),
+          });
+          const data = await res.json();
+          staffListEl.innerHTML = "";
+          if (!res.ok) {
+            setStatus(
+              adminStatus,
+              data.message || "Failed to load staff",
+              "error",
+            );
+            return;
+          }
+          if (!Array.isArray(data) || data.length === 0) {
+            staffListEl.innerHTML =
+              '<div class="card"><div class="meta">No staff found</div></div>';
+            return;
+          }
+          data.forEach(renderStaffCard);
+        } catch (err) {
+          staffListEl.innerHTML = "";
+          setStatus(adminStatus, "Network error loading staff", "error");
+        }
+      }
+
+      // Render a staff card
+      function renderStaffCard(staff) {
+        const card = document.createElement("div");
+        card.className = "card";
+        const left = document.createElement("div");
+        left.innerHTML = `<div><strong>${escapeHtml(staff.name || staff.username || "No name")}</strong></div>
+                        <div class="meta">${escapeHtml(staff.email || "—")}</div>
+                        <div class="meta">Attempts: ${typeof staff.login_attempt === "number" ? staff.login_attempt : "—"}</div>
+                        <div class="meta">Status: ${staff.disabled ? "Blocked" : "Active"}</div>`;
+        const actions = document.createElement("div");
+        actions.className = "actions";
+
+        // Block / Unblock
+        const blockBtn = document.createElement("button");
+        blockBtn.className =
+          "btn " + (staff.disabled ? "btn-unblock" : "btn-block");
+        blockBtn.textContent = staff.disabled ? "Unblock" : "Block";
+        blockBtn.onclick = () =>
+          performStaffAction(staff._id, "block", blockBtn);
+
+        // Verify / Unverify
+        const verifyBtn = document.createElement("button");
+        verifyBtn.className =
+          "btn " + (staff.verified ? "btn-unverify" : "btn-verify");
+        verifyBtn.textContent = staff.verified ? "Unverify" : "Verify";
+        verifyBtn.onclick = () =>
+          performStaffAction(staff._id, "verify", verifyBtn);
+
+        // Reset attempts
+        const resetBtn = document.createElement("button");
+        resetBtn.className = "btn btn-reset";
+        resetBtn.textContent = "Reset Attempts";
+        resetBtn.onclick = () =>
+          performStaffAction(staff._id, "reset-attempts", resetBtn);
+
+        actions.appendChild(blockBtn);
+        actions.appendChild(verifyBtn);
+        actions.appendChild(resetBtn);
+
+        card.appendChild(left);
+        card.appendChild(actions);
+        staffListEl.appendChild(card);
+      }
+
+      // Perform staff action: block, verify, reset-attempts
+      async function performStaffAction(id, action, btn) {
+        adminStatus.textContent = "";
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        const loader = createLoader();
+        btn.appendChild(loader);
+
+        // Map action to endpoint - adjust if your API uses different paths
+        const endpointMap = {
+          block: `/api/staff/${id}/block`,
+          verify: `/api/staff/${id}/verify`,
+          "reset-attempts": `/api/staff/${id}/reset-attempts`,
+        };
+        const url =
+          baseApi + (endpointMap[action] || `/api/staff/${id}/${action}`);
+
+        try {
+          const res = await fetch(url, {
+            method: "PATCH",
+            headers: authHeaders(),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            setStatus(
+              adminStatus,
+              data.message || `Failed to ${action}`,
+              "error",
+            );
+          } else {
+            setStatus(
+              adminStatus,
+              data.message || `${action} succeeded`,
+              "success",
+            );
+            // Refresh staff list to reflect changes
+            await fetchStaff();
+          }
+        } catch (err) {
+          setStatus(adminStatus, `Network error performing ${action}`, "error");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }
+      }
+
+      // Escape HTML to avoid injection in names/emails
+      function escapeHtml(str) {
+        if (!str) return "";
+        return String(str).replace(/[&<>"']/g, function (m) {
+          return {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          }[m];
+        });
+      }
+
+      // On load: if token exists, try to fetch profile and show UI
+      (async function init() {
+        const t = token();
+        if (!t) return;
+        try {
+          const res = await fetch(baseApi + "/api/auth/me", {
+            headers: authHeaders(),
+          });
+          if (!res.ok) {
+            // token invalid or expired
+            localStorage.removeItem("token");
+            return;
+          }
+          const user = await res.json();
+          await afterLogin(user);
+        } catch (err) {
+          // ignore network errors on init
+        }
+      })();
+
+      // Admin lists: pending & blocked (insert into app.js)
+      const admin = {
+        pendingList: document.getElementById("pendingList"),
+        blockedList: document.getElementById("blockedList"),
+        pendingListMobile: document.getElementById("pendingListMobile"),
+        blockedListMobile: document.getElementById("blockedListMobile"),
+        openBtn: document.getElementById("openAdminModal"),
+        closeBtn: document.getElementById("closeAdminModal"),
+        modal: document.getElementById("adminModal"),
+        panel: document.getElementById("adminApprovalPanel"),
+        statusEl: document.getElementById("adminStatus") || null,
+      };
+
+      function authHeaders() {
+        const t = localStorage.getItem("token");
+        return t
+          ? { Authorization: "Bearer " + t, "Content-Type": "application/json" }
+          : { "Content-Type": "application/json" };
+      }
+      function createAdminLoader() {
+        const s = document.createElement("span");
+        s.className = "admin-loader";
+        return s;
+      }
+      function escapeHtml(s) {
+        if (!s) return "";
+        return String(s).replace(
+          /[&<>"']/g,
+          (m) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[m],
+        );
+      }
+
+      // Render helper for desktop + mobile
+      function renderAccountCard(item) {
+        const left = `<div><strong>${escapeHtml(item.name || item.username || "No name")}</strong>
+    <div class="meta">${escapeHtml(item.email || "—")}</div>
+    <div class="meta">Attempts: ${typeof item.login_attempt === "number" ? item.login_attempt : "—"}</div></div>`;
+
+        const actions = document.createElement("div");
+        actions.className = "admin-action";
+
+        // Approve (for pending)
+        if (item._pending) {
+          const approve = document.createElement("button");
+          approve.className = "admin-btn approve";
+          approve.textContent = "Approve";
+          approve.onclick = () => adminAction(item._id, "approve", approve);
+          actions.appendChild(approve);
+        }
+
+        // Block / Unblock
+        const blockBtn = document.createElement("button");
+        blockBtn.className =
+          "admin-btn " + (item.disabled ? "unblock" : "block");
+        blockBtn.textContent = item.disabled ? "Unblock" : "Block";
+        blockBtn.onclick = () => adminAction(item._id, "block", blockBtn);
+        actions.appendChild(blockBtn);
+
+        // Reset attempts
+        const reset = document.createElement("button");
+        reset.className = "admin-btn reset";
+        reset.textContent = "Reset Attempts";
+        reset.onclick = () => adminAction(item._id, "reset-attempts", reset);
+        actions.appendChild(reset);
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "card";
+        wrapper.innerHTML = left;
+        wrapper.appendChild(actions);
+        return wrapper;
+      }
+
+      // Fetch lists from backend
+      async function fetchAdminLists() {
+        if (!admin.pendingList) return;
+
+        // quick auth check
+        const t = localStorage.getItem("token");
+        if (!t) {
+          admin.pendingList.innerHTML =
+            '<div class="meta">Not authenticated</div>';
+          admin.blockedList.innerHTML =
+            '<div class="meta">Not authenticated</div>';
+          if (admin.pendingListMobile)
+            admin.pendingListMobile.innerHTML = admin.pendingList.innerHTML;
+          if (admin.blockedListMobile)
+            admin.blockedListMobile.innerHTML = admin.blockedList.innerHTML;
+          console.error("fetchAdminLists: no token in localStorage");
+          return;
+        }
+
+        // show loaders
+        admin.pendingList.innerHTML = "";
+        admin.pendingList.appendChild(createAdminLoader());
+        admin.blockedList.innerHTML = "";
+        admin.blockedList.appendChild(createAdminLoader());
+        if (admin.pendingListMobile) {
+          admin.pendingListMobile.innerHTML = "";
+          admin.pendingListMobile.appendChild(createAdminLoader());
+        }
+        if (admin.blockedListMobile) {
+          admin.blockedListMobile.innerHTML = "";
+          admin.blockedListMobile.appendChild(createAdminLoader());
+        }
+
+        try {
+          const urls = [
+            "/api/admin/pending/accounts",
+            "/api/admin/blocked/accounts",
+          ];
+
+          // fetch both and inspect each response
+          const [pRes, bRes] = await Promise.all(
+            urls.map((u) => fetch(u, { headers: authHeaders() })),
+          );
+
+          // helper to parse safely
+          async function parseSafe(res) {
+            const text = await res.text();
+            try {
+              return { ok: res.ok, status: res.status, body: JSON.parse(text) };
+            } catch (e) {
+              return { ok: res.ok, status: res.status, bodyText: text };
+            }
+          }
+
+          const pParsed = await parseSafe(pRes);
+          const bParsed = await parseSafe(bRes);
+
+          // log for debugging
+          console.group("fetchAdminLists responses");
+          console.log("pending:", pParsed);
+          console.log("blocked:", bParsed);
+          console.groupEnd();
+
+          // handle non-ok statuses with visible messages
+          if (!pParsed.ok) {
+            const msg =
+              (pParsed.body && pParsed.body.message) ||
+              pParsed.bodyText ||
+              `HTTP ${pParsed.status}`;
+            admin.pendingList.innerHTML = `<div class="meta">Error: ${escapeHtml(msg)}</div>`;
+          }
+          if (!bParsed.ok) {
+            const msg =
+              (bParsed.body && bParsed.body.message) ||
+              bParsed.bodyText ||
+              `HTTP ${bParsed.status}`;
+            admin.blockedList.innerHTML = `<div class="meta">Error: ${escapeHtml(msg)}</div>`;
+          }
+
+          // extract arrays (support both direct array and { data } envelope)
+          const pending =
+            pParsed.ok && Array.isArray(pParsed.body)
+              ? pParsed.body
+              : pParsed.ok && pParsed.body && Array.isArray(pParsed.body.data)
+                ? pParsed.body.data
+                : [];
+
+          const blocked =
+            bParsed.ok && Array.isArray(bParsed.body)
+              ? bParsed.body
+              : bParsed.ok && bParsed.body && Array.isArray(bParsed.body.data)
+                ? bParsed.body.data
+                : [];
+
+          // mark pending items
+          pending.forEach((i) => (i._pending = true));
+
+          // render desktop
+          admin.pendingList.innerHTML = "";
+          admin.blockedList.innerHTML = "";
+          if (pending.length === 0)
+            admin.pendingList.innerHTML =
+              '<div class="meta">No pending accounts</div>';
+          else
+            pending.forEach((i) =>
+              admin.pendingList.appendChild(renderAccountCard(i)),
+            );
+
+          if (blocked.length === 0)
+            admin.blockedList.innerHTML =
+              '<div class="meta">No blocked accounts</div>';
+          else
+            blocked.forEach((i) =>
+              admin.blockedList.appendChild(renderAccountCard(i)),
+            );
+
+          // sync mobile containers if present
+          if (admin.pendingListMobile)
+            admin.pendingListMobile.innerHTML = admin.pendingList.innerHTML;
+          if (admin.blockedListMobile)
+            admin.blockedListMobile.innerHTML = admin.blockedList.innerHTML;
+        } catch (err) {
+          console.error("fetchAdminLists error:", err);
+          admin.pendingList.innerHTML =
+            '<div class="meta">Network error loading</div>';
+          admin.blockedList.innerHTML =
+            '<div class="meta">Network error loading</div>';
+          if (admin.pendingListMobile)
+            admin.pendingListMobile.innerHTML = admin.pendingList.innerHTML;
+          if (admin.blockedListMobile)
+            admin.blockedListMobile.innerHTML = admin.blockedList.innerHTML;
+          if (admin.statusEl)
+            admin.statusEl.textContent = "Network error loading admin lists";
+        }
+      }
+
+      // Perform admin action
+      async function adminAction(id, action, btn) {
+        if (
+          !confirm(
+            {
+              approve: "Approve this account?",
+              block: "Toggle block/unblock?",
+              "reset-attempts": "Reset login attempts?",
+            }[action] || "Proceed?",
+          )
+        )
+          return;
+        const original = btn.textContent;
+        btn.disabled = true;
+        const loader = createAdminLoader();
+        btn.appendChild(loader);
+
+        const map = {
+          approve: `/api/admin/verify/${id}`,
+          block: `/api/admin/unblock/${id}`,
+          "reset-attempts": `/api/staff/${id}/reset-attempts`,
+        };
+        const url = map[action] || `/api/staff/${id}/${action}`; 
+
+        try {
+          const res = await fetch(url, {
+            method: "GET",
+            headers: authHeaders(),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            alert(data.message || "Action failed");
+          } else {
+            // refresh lists
+            await fetchAdminLists();
+          }
+        } catch (err) {
+          alert("Network error performing action");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = original;
+        }
+      }
+
+      // Wire modal open/close and initial load
+      if (admin.openBtn) {
+        admin.openBtn.addEventListener("click", () => {
+          admin.modal.classList.remove("hidden");
+          fetchAdminLists();
+        });
+      }
+      if (admin.closeBtn) {
+        admin.closeBtn.addEventListener("click", () =>
+          admin.modal.classList.add("hidden"),
+        );
+      }
+      if (admin.panel) {
+        // show desktop panel for larger screens
+        admin.panel.classList.remove("hidden");
+        fetchAdminLists();
+      }
+
+      function adminContainerClickHandler(e) {
+        const btn = e.target.closest("button[data-action]");
+        if (!btn) return;
+        const action = btn.dataset.action;
+        const card = btn.closest(".card");
+        const id = card && card.dataset.id;
+        if (!action || !id) return;
+        (async () => {
+          const confirmMsg =
+            {
+              approve: "Approve this account?",
+              block: "Toggle block/unblock?",
+              "reset-attempts": "Reset login attempts?",
+            }[action] || "Proceed?";
+          const ok = await showConfirm(confirmMsg);
+          if (!ok) return;
+          adminAction(id, action, btn);
+        })();
+      }
+      [
+        "pendingList",
+        "blockedList",
+        "pendingListMobile",
+        "blockedListMobile",
+      ].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("click", adminContainerClickHandler);
+      });
+
+      function showConfirm(message){
+  return new Promise(resolve=>{
+    const backdrop = document.getElementById("confirmBackdrop");
+    const msgEl = document.getElementById("confirmMessage");
+    const ok = document.getElementById("confirmOk");
+    const cancel = document.getElementById("confirmCancel");
+    const close = document.getElementById("confirmClose");
+    msgEl.textContent = message;
+    backdrop.classList.add("open");
+    function cleanup(result){
+      backdrop.classList.remove("open");
+      ok.removeEventListener("click", onOk);
+      cancel.removeEventListener("click", onCancel);
+      close.removeEventListener("click", onCancel);
+      resolve(result);
+    }
+    function onOk(){ cleanup(true); }
+    function onCancel(){ cleanup(false); }
+    ok.addEventListener("click", onOk);
+    cancel.addEventListener("click", onCancel);
+    close.addEventListener("click", onCancel);
+  });
+}
+
+    </script>
+  </body>
+</html>
