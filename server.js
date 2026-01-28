@@ -1,7 +1,6 @@
 const express = require("express");
 const { connection } = require("./src/config/db");
 const userRoute = require("./src/modules/user_model/user_route");
-const { registerAdminfunction } = require("./src/config/admin.setup");
 const app = express();
 const path = require("path");
 const port = process.env.PORT || 3000;
