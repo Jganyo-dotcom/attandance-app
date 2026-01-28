@@ -7,7 +7,7 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json());
 connection();
-registerAdminfunction;
+;
 app.get("/a", (req, res) => {
   res.send("Hello World!");
 });
