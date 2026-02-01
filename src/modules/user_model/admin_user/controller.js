@@ -237,7 +237,7 @@ const createPerson = async (req, res) => {
   }
 };
 
-export const searchPersonByName = async (req, res) => {
+const searchPersonByName = async (req, res) => {
   try {
     const name = req.params.name;
     // Weak search: case-insensitive, partial match
