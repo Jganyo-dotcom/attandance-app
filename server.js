@@ -4,10 +4,15 @@ const userRoute = require("./src/modules/user_model/user_route");
 const app = express();
 const path = require("path");
 const port = process.env.PORT || 3000;
+const cors = require("cors");
 
+app.use(
+  cors({
+    origin: ["https://phenomenal-palmier-2f7f1c.netlify.app/"], // touch not
+  }),
+);
 app.use(express.json());
 connection();
-;
 app.get("/a", (req, res) => {
   res.send("Hello World!");
 });

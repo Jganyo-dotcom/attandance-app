@@ -10,7 +10,7 @@ const RegisterSchema = new mongoose.Schema(
     status: { type: String, enum: ["P", "A"], default: "N/A" },
     name: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Users",
+      ref: "People",
       required: true,
     },
     markedBy: {
