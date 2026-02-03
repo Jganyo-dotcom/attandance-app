@@ -6,8 +6,8 @@ const CheckroleonAll = (req, res, next) => {
 };
 
 const checkroleonAll = (req, res, next) => {
-  if (req.user.role !== "Admin" || req.user.role !== "staff") {
-    return res.status(403).json({ message: "Unauthorised acccess" });
+  if (req.user.role !== "Admin" && req.user.role !== "Staff") {
+    return res.status(403).json({ message: "Unauthorized access" });
   }
   next();
 };

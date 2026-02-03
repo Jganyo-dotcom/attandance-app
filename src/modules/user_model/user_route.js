@@ -10,6 +10,10 @@ const {
   markAsAbsent,
   createPerson,
   searchPersonByName,
+  getAllPersons,
+  markAsPresent,
+  getAllAbsent,
+  exportAttendance,
 } = require("./admin_user/controller");
 const { CheckroleonAll, checkroleonAll } = require("../../middlewares/role");
 const authmiddleware = require("../../middlewares/auth");
@@ -40,6 +44,8 @@ router.get(
   CheckroleonAll,
   getDisabledAccounts,
 );
+
+router.get("/Absents", authmiddleware, CheckroleonAll, getAllAbsent);
 router.get(
   "/admin/pending/accounts",
   authmiddleware,
@@ -53,14 +59,31 @@ router.get(
   CheckroleonAll,
   closeSession,
 );
-router.delete("/mark-present/", authmiddleware, checkroleonAll, markAsAbsent);
-router.get("/mark-absent/", authmiddleware, checkroleonAll, markAsAbsent);
-router.get("/create-person/", authmiddleware, checkroleonAll, createPerson);
+router.get(
+  "/mark-present/:nameId/:sessionId/",
+  authmiddleware,
+  checkroleonAll,
+  markAsPresent,
+);
+router.delete(
+  "/mark-absent/:nameId/:sessionId/",
+  authmiddleware,
+  checkroleonAll,
+  markAsAbsent,
+);
+router.get("/get-all/", authmiddleware, checkroleonAll, getAllPersons);
+router.post("/create-person/", authmiddleware, checkroleonAll, createPerson);
 router.post(
   "/search-person/",
   authmiddleware,
   checkroleonAll,
   searchPersonByName,
+);
+router.get(
+  "/admin/export-attendance/:sessionId",
+  authmiddleware,
+  CheckroleonAll,
+  exportAttendance,
 );
 
 module.exports = router;

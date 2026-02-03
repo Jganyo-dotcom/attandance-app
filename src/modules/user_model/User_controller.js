@@ -1,3 +1,6 @@
+const attendance = require("../../models/attendance");
+const People = require("../../models/People");
+const session = require("../../models/session");
 const UserSchema = require("../../models/user.model");
 const {
   validationForRegisterSchema,
@@ -64,6 +67,7 @@ const LoginUser = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
     let tryingToLoginUser;
+
     if (value.main.includes("@")) {
       //find the user
       tryingToLoginUser = await UserSchema.findOne({ email: value.main });
@@ -78,7 +82,10 @@ const LoginUser = async (req, res) => {
     }
 
     // check if disabled
-    if (tryingToLoginUser.disabled === true) {
+    if (
+      tryingToLoginUser.disabled === true &&
+      tryingToLoginUser.role !== "Admin"
+    ) {
       return res.status(404).json({ message: "Your account was blocked" });
     }
 
@@ -120,10 +127,12 @@ const LoginUser = async (req, res) => {
 
     const safe_user = {
       id: tryingToLoginUser._id,
+      username: tryingToLoginUser.username,
       name: tryingToLoginUser.name,
       email: tryingToLoginUser.email,
       role: tryingToLoginUser.role,
     };
+    tryingToLoginUser.login_attempt = 3;
 
     //if password is right
     res.status(200).json({

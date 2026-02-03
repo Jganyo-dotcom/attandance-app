@@ -13,7 +13,7 @@ const registerAdminfunction = async () => {
 
     const registerAdmin = new Users({
       name: "Elikem James Ganyo",
-      email: "elikemejay@gmail.com",
+      email: "elikemejayy@gmail.com",
       password: hashed_password, // now a real string
       role: "Admin",
       username: "Jganyo",

@@ -9,7 +9,7 @@ const SessionSchema = new mongoose.Schema(
       type: String,
       enum: ["Open", "closed"],
       required: true,
-      default: "open",
+      default: "Open",
     },
     author: {
       type: mongoose.Schema.Types.ObjectId,
