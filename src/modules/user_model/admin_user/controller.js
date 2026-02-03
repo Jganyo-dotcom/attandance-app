@@ -245,6 +245,11 @@ const markAsAbsent = async (req, res) => {
 };
 
 const createPerson = async (req, res) => {
+  const { error} = validationForCreateSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: error.details[0].message });
+  }
+
   try {
     const { name, department, contact } = req.body; // ✅ use body
 
@@ -375,9 +380,8 @@ const getAllAbsent = async (req, res) => {
   }
 };
 
-
-
 const ExcelJS = require("exceljs");
+const { validationForCreateSchema } = require("../user_validation");
 
 const exportAttendance = async (req, res) => {
   try {

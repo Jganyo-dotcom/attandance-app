@@ -13,4 +13,17 @@ const validationForLogin = Joi.object({
   password: Joi.string().min(6).required(),
 });
 
-module.exports = { validationForRegisterSchema, validationForLogin };
+const validationForCreateSchema = Joi.object({
+  name: Joi.string().min(5).max(50).required(),
+  department: Joi.string().min(5).max(50).required(),
+  contact: Joi.string()
+    .length(10)
+    .pattern(/^[0-9]+$/)
+    .required(),
+});
+
+module.exports = {
+  validationForRegisterSchema,
+  validationForLogin,
+  validationForCreateSchema,
+};
