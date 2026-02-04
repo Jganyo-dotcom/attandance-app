@@ -1,13 +1,25 @@
 const mongoose = require("mongoose");
 
-const connection = async () => {
+const connections = {};
+
+const connectDatabases = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log("Database connected");
+    // Connect to main DB
+    connections.Main = mongoose.createConnection(process.env.MONGO_URI);
+    await connections.Main.asPromise();
+
+    // Connect to visa DB
+    connections.Visa = mongoose.createConnection(process.env.MONGO_URI_VISA);
+    await connections.Visa.asPromise();
+
+    // Connect to teens DB
+    connections.Teens = mongoose.createConnection(process.env.MONGO_URI_TEENS);
+    await connections.Teens.asPromise();
+
+    console.log("All databases connected");
   } catch (error) {
-    console.log(error);
-    console.log("something went wrong db");
+    console.error("Database connection error:", error);
   }
 };
 
-module.exports = { connection };
+module.exports = { connectDatabases, connections };

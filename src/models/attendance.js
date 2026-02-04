@@ -4,10 +4,10 @@ const RegisterSchema = new mongoose.Schema(
   {
     sessionId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "session",
+      ref: "Session",
       required: true,
     },
-    status: { type: String, enum: ["P", "A"], default: "N/A" },
+    status: { type: String, enum: ["P", "A", "N/A"], default: "N/A" },
     name: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "People",
@@ -22,4 +22,4 @@ const RegisterSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-module.exports = mongoose.model("Register", RegisterSchema);
+module.exports = RegisterSchema;

@@ -1,12 +1,12 @@
 const express = require("express");
-const { connection } = require("./src/config/db");
+const { connectDatabases } = require("./src/config/db");
 const userRoute = require("./src/modules/user_model/user_route");
 const app = express();
 const path = require("path");
 const port = process.env.PORT || 3000;
 const cors = require("cors");
 
-// const { registerAdminfunction } = require("./src/config/admin.setup");
+const { registerAdminfunction } = require("./src/config/admin.setup");
 
 app.use(
   cors({
@@ -18,8 +18,9 @@ app.use(
 );
 
 app.use(express.json());
+connectDatabases();
+// registerAdminfunction()
 
-connection();
 app.get("/a", (req, res) => {
   res.send("Hello World!");
 });

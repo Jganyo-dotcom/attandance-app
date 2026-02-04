@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { connections } = require("../config/db"); // import your connections object
 
 const authmiddleware = (req, res, next) => {
   console.log("authmiddleware");
@@ -12,11 +13,22 @@ const authmiddleware = (req, res, next) => {
     if (!verify_token) {
       return res.status(401).json({ message: "invalid token sign In" });
     }
+
     req.user = verify_token;
+
+    // Attach the correct DB connection based on org in token
+    const org = verify_token.org;
+    if (org && connections[org]) {
+      console.log(org);
+      req.db = connections[org];
+    } else {
+      return res.status(400).json({ message: "Invalid org in token" });
+    }
+
     next();
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: "Token expired" });
+    return res.status(500).json({ message: "Token expired or invalid" });
   }
 };
 

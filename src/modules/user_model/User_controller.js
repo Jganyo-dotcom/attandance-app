@@ -2,6 +2,12 @@ const attendance = require("../../models/attendance");
 const People = require("../../models/People");
 const session = require("../../models/session");
 const UserSchema = require("../../models/user.model");
+const { connections } = require("../../config/db");
+
+// Always bind User to the main connection
+
+// Now you can safely use User everywhere
+
 const {
   validationForRegisterSchema,
   validationForLogin,
@@ -10,17 +16,18 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
 const registerNewUser = async (req, res) => {
+  const User = connections.Main.model("User", UserSchema);
   const { error, value } = validationForRegisterSchema.validate(req.body);
   if (error) {
     return res.status(400).json({ error: error.details[0].message });
   }
 
   // find email is existing
-  const existing_user = await UserSchema.findOne({ email: value.email });
+  const existing_user = await User.findOne({ email: value.email });
   if (existing_user) {
     return res.status(400).json({ message: "email already exist" });
   }
-  const existing_username = await UserSchema.findOne({
+  const existing_username = await User.findOne({
     username: value.username,
   });
   if (existing_username) {
@@ -36,12 +43,13 @@ const registerNewUser = async (req, res) => {
     const hashed_password = await bcrypt.hash(value.password, salt);
 
     // go on to register user
-    const User_info = new UserSchema({
+    const User_info = new User({
       email: value.email,
       name: value.name,
       username: value.username,
       role: "Staff",
       password: hashed_password,
+      org: value.org,
     });
     await User_info.save();
     //send back the user
@@ -49,6 +57,7 @@ const registerNewUser = async (req, res) => {
       id: User_info._id,
       email: value.email,
       name: value.name,
+      org: value.org,
     };
     res.status(201).json({ message: "user successfully registered", newUser });
   } catch (error) {
@@ -61,6 +70,7 @@ const registerNewUser = async (req, res) => {
 };
 
 const LoginUser = async (req, res) => {
+  const User = connections.Main.model("User", UserSchema);
   try {
     const { error, value } = validationForLogin.validate(req.body);
     if (error) {
@@ -70,9 +80,9 @@ const LoginUser = async (req, res) => {
 
     if (value.main.includes("@")) {
       //find the user
-      tryingToLoginUser = await UserSchema.findOne({ email: value.main });
+      tryingToLoginUser = await User.findOne({ email: value.main });
     } else {
-      tryingToLoginUser = await UserSchema.findOne({
+      tryingToLoginUser = await User.findOne({
         username: value.main,
       });
     }
@@ -103,7 +113,10 @@ const LoginUser = async (req, res) => {
     if (!compare_passwords) {
       tryingToLoginUser.login_attempt = tryingToLoginUser.login_attempt - 1;
       await tryingToLoginUser.save();
-      if (tryingToLoginUser.login_attempt <= 0) {
+      if (
+        tryingToLoginUser.login_attempt <= 0 &&
+        tryingToLoginUser.role !== "Admin"
+      ) {
         tryingToLoginUser.disabled = true;
         await tryingToLoginUser.save();
         return res.status(401).json({ message: "Account has been blocked" });
@@ -120,6 +133,7 @@ const LoginUser = async (req, res) => {
         username: tryingToLoginUser.username,
         disabled: tryingToLoginUser.disabled,
         verifiedByAdmin: tryingToLoginUser.verifiedByAdmin,
+        org: tryingToLoginUser.org,
       },
       process.env.JWT_SECRETE,
       { expiresIn: process.env.EXPIRES_IN },
@@ -146,7 +160,8 @@ const LoginUser = async (req, res) => {
   }
 };
 const deleteall = async (req, res) => {
-  const users = await UserSchema.deleteMany({});
+  const User = connections.Main.model("User", UserSchema);
+  const users = await User.deleteMany({});
   return res.status(200).json({ message: "Deleted" });
 };
 

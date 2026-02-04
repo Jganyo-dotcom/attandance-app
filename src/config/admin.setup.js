@@ -2,8 +2,12 @@ const Joi = require("joi");
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const Users = require("../models/user.model");
+const UserSchema = require("../models/user.model");
+const { connections } = require("../config/db");
+
 
 const registerAdminfunction = async () => {
+  const User = connections.Main.model("User", UserSchema);
   try {
     // hash super admin password
     const password = "Iamtheadminhere";
@@ -11,13 +15,14 @@ const registerAdminfunction = async () => {
     const salt = await bcrypt.genSalt(10); // ✅ await here
     const hashed_password = await bcrypt.hash(password, salt); // ✅ await here
 
-    const registerAdmin = new Users({
+    const registerAdmin = new User({
       name: "Elikem James Ganyo",
-      email: "elikemejayy@gmail.com",
+      email: "elikem@gmail.com",
       password: hashed_password, // now a real string
       role: "Admin",
-      username: "Jganyo",
+      username: "Jgany",
       verifiedByAdmin: true,
+      org: "Teens",
     });
 
     await registerAdmin.save();

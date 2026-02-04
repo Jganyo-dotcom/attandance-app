@@ -14,6 +14,8 @@ const {
   markAsPresent,
   getAllAbsent,
   exportAttendance,
+  deletePerson,
+  AdminChangePassword,
 } = require("./admin_user/controller");
 const { CheckroleonAll, checkroleonAll } = require("../../middlewares/role");
 const authmiddleware = require("../../middlewares/auth");
@@ -84,6 +86,18 @@ router.get(
   authmiddleware,
   CheckroleonAll,
   exportAttendance,
+);
+router.delete(
+  "/admin/delete/:id",
+  authmiddleware,
+  CheckroleonAll,
+  deletePerson,
+);
+router.post(
+  "/admin/change-password/:id",
+  authmiddleware,
+  CheckroleonAll,
+  AdminChangePassword,
 );
 
 module.exports = router;

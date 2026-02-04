@@ -6,10 +6,11 @@ const PeopleSchema = new mongoose.Schema(
     department: { type: String, required: true },
     contact: { type: String, minlength: 10, required: true, unique: true },
     status: { type: String, enum: ["P", "A"], default: "A" },
+    org: { type: String, enum: ["Visa", "Teens"], default: "N/A" },
   },
   { timestamps: true },
 );
 
 PeopleSchema.index({ name: 1 });
 
-module.exports = mongoose.model("People", PeopleSchema);
+module.exports = PeopleSchema;

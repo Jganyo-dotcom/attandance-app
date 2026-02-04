@@ -7,9 +7,9 @@ const SessionSchema = new mongoose.Schema(
     end: { type: String, required: true, default: "N/A" },
     status: {
       type: String,
-      enum: ["Open", "closed"],
+      enum: ["Open", "Closed"],
+      default: "Closed",
       required: true,
-      default: "Open",
     },
     author: {
       type: mongoose.Schema.Types.ObjectId,
@@ -20,4 +20,4 @@ const SessionSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-module.exports = mongoose.model("Session", SessionSchema);
+module.exports = SessionSchema;

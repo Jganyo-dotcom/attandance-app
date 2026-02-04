@@ -10,8 +10,9 @@ const UserSchema = new mongoose.Schema(
     login_attempt: { type: Number, required: true, default: 3 },
     role: { type: String, required: true },
     disabled: { type: Boolean, required: true, default: false },
+    org: { type: String, enum: ["Main", "Visa", "Teens"], default: "N/A" },
   },
   { timestamps: true },
 );
 
-module.exports = mongoose.model("Users", UserSchema);
+module.exports = UserSchema;

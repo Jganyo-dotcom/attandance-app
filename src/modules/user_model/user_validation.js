@@ -6,6 +6,7 @@ const validationForRegisterSchema = Joi.object({
   username: Joi.string().min(3).required(),
   confirm_password: Joi.string().min(6).required(),
   password: Joi.string().min(6).required(),
+  org: Joi.string().min(4).required(),
 });
 
 const validationForLogin = Joi.object({
