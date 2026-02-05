@@ -6,7 +6,7 @@ const path = require("path");
 const port = process.env.PORT || 3000;
 const cors = require("cors");
 
-const { registerAdminfunction } = require("./src/config/admin.setup");
+// const { registerAdminfunction } = require("./src/config/admin.setup");
 
 app.use(
   cors({
