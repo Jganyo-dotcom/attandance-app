@@ -406,7 +406,7 @@ const getAllPersons = async (req, res) => {
       .sort({ createdAt: -1 });
     console.log(staff);
     res.json({
-      message: "Staff list retrieved",
+      message: "All is well",
       staff,
       page,
       totalPages: Math.ceil(total / limit),

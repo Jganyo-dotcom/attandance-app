@@ -5,6 +5,7 @@ const app = express();
 const path = require("path");
 const port = process.env.PORT || 3000;
 const cors = require("cors");
+const morgan = require("morgan");
 
 // const { registerAdminfunction } = require("./src/config/admin.setup");
 
@@ -17,6 +18,8 @@ app.use(
   }),
 );
 
+// Use morgan with the "combined" or "dev" format
+app.use(morgan("dev")); // logs method, URL, status, response time
 app.use(express.json());
 connectDatabases();
 // registerAdminfunction()
