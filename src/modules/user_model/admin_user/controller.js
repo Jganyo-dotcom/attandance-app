@@ -91,6 +91,36 @@ const pendingAccounts = async (req, res) => {
   }
 };
 
+const getAllStaff = async (req, res) => {
+  console.log("come");
+  const User = connections.Main.model("User", UserSchema);
+  try {
+    // Sorting params (optional)
+    const sortBy = req.query.sortBy || "createdAt";
+    const sortDir = req.query.sortDir === "asc" ? 1 : -1;
+
+    // Build query
+    const filter = { verifiedByAdmin: true, org: req.user.org, role: "Staff" };
+
+    // Fetch all documents with projection and lean for performance
+    const accounts = await User.find(filter)
+      .select("name username email login_attempt") // only needed fields
+      .sort({ [sortBy]: sortDir })
+      .lean();
+
+ 
+
+    return res.status(200).json({
+      data: accounts,
+    });
+  } catch (err) {
+    console.error("getAllStaff error:", err);
+    return res
+      .status(500)
+      .json({ message: "Server error fetching staff accounts" });
+  }
+};
+
 // Controller: get disabled accounts
 const getDisabledAccounts = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
@@ -404,7 +434,7 @@ const getAllPersons = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(limit)
       .sort({ createdAt: -1 });
-    console.log(staff);
+   
     res.json({
       message: "All is well",
       staff,
@@ -638,4 +668,5 @@ module.exports = {
   AdminChangePassword,
   deleteAdmin,
   unverify,
+  getAllStaff,
 };
