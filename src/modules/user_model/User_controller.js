@@ -72,6 +72,7 @@ const registerNewUser = async (req, res) => {
 const LoginUser = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
   try {
+   
     const { error, value } = validationForLogin.validate(req.body);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });

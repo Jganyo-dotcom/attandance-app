@@ -21,7 +21,9 @@ const authmiddleware = (req, res, next) => {
     if (org && connections[org]) {
       console.log(org);
       req.db = connections[org];
-    } 
+    } else {
+      return res.status(400).json({ message: "Invalid org in token" });
+    }
 
     next();
   } catch (error) {
