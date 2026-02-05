@@ -16,6 +16,8 @@ const {
   exportAttendance,
   deletePerson,
   AdminChangePassword,
+  deleteAdmin,
+  unverify,
 } = require("./admin_user/controller");
 const { CheckroleonAll, checkroleonAll } = require("../../middlewares/role");
 const authmiddleware = require("../../middlewares/auth");
@@ -99,5 +101,7 @@ router.post(
   CheckroleonAll,
   AdminChangePassword,
 );
+router.delete("/admin/unverify/:id", authmiddleware, CheckroleonAll, unverify);
+router.delete("/admin/:id/delete", authmiddleware, CheckroleonAll, deleteAdmin);
 
 module.exports = router;

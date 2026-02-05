@@ -53,7 +53,7 @@ const unblock_staff_account = async (req, res) => {
 };
 // Controller: get pending accounts (improved)
 const pendingAccounts = async (req, res) => {
-  console.log("come")
+  console.log("come");
   const User = connections.Main.model("User", UserSchema);
   try {
     // Query params for pagination and sorting
@@ -127,6 +127,46 @@ const getDisabledAccounts = async (req, res) => {
     return res
       .status(500)
       .json({ message: "Server error fetching disabled accounts" });
+  }
+};
+
+// routes/user.js
+
+// Middleware should decode JWT and attach user info to req.user
+const deleteAdmin = async (req, res) => {
+  try {
+    const User = connections.Main.model("User", UserSchema);
+    const userId = req.params.id; // assuming JWT middleware sets req.user
+
+    const deletedUser = await User.findByIdAndDelete(userId);
+
+    if (!deletedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({ message: "Account deleted successfully" });
+  } catch (err) {
+    console.error("Delete account error:", err);
+    return res.status(500).json({ message: "Server error deleting account" });
+  }
+};
+
+// Delete pending account
+const unverify = async (req, res) => {
+  try {
+    const User = connections.Main.model("User", UserSchema);
+    const { id } = req.params;
+
+    const deletedUser = await User.findByIdAndDelete(id);
+
+    if (!deletedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({ message: "User deleted successfully" });
+  } catch (err) {
+    console.error("Delete user error:", err);
+    return res.status(500).json({ message: "Server error deleting user" });
   }
 };
 
@@ -568,6 +608,7 @@ const AdminChangePassword = async (req, res) => {
 
     // Update password
     admin.password = hashedNewPassword;
+    admin.hasChangedPassword = true;
     await admin.save();
 
     return res.status(200).json({ message: "Password changed successfully" });
@@ -595,4 +636,6 @@ module.exports = {
   exportAttendance,
   deletePerson,
   AdminChangePassword,
+  deleteAdmin,
+  unverify,
 };
