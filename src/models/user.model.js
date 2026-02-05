@@ -10,8 +10,11 @@ const UserSchema = new mongoose.Schema(
     login_attempt: { type: Number, required: true, default: 3 },
     role: { type: String, required: true },
     disabled: { type: Boolean, required: true, default: false },
-    org: { type: String, enum: ["Main", "Visa", "Teens"], default: "N/A" },
-    hasChangedPassword: { type: Boolean, required: true, default: false },
+    org: {
+      type: String,
+      enum: ["Main", "Visa", "Teens", "N/A"],
+      default: "N/A",
+    },
   },
   { timestamps: true },
 );
