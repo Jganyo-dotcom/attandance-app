@@ -72,7 +72,6 @@ const registerNewUser = async (req, res) => {
 const LoginUser = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
   try {
-   
     const { error, value } = validationForLogin.validate(req.body);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
@@ -167,4 +166,72 @@ const deleteall = async (req, res) => {
   return res.status(200).json({ message: "Deleted" });
 };
 
-module.exports = { registerNewUser, LoginUser, deleteall };
+const Joi = require("joi");
+
+// Validation schema
+const adminSchema = Joi.object({
+  name: Joi.string().required(),
+  username: Joi.string().required(),
+  email: Joi.string().email().required(),
+  password: Joi.string().min(6).required(),
+  org: Joi.string().required(),
+});
+
+const getAdmins = async (req, res) => {
+  try {
+    const User = connections.Main.model("User", UserSchema);
+    const admins = await User.find({ role: "Admin" });
+    res.json(admins);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// Add new admin
+const createAdmin = async (req, res) => {
+  const User = connections.Main.model("User", UserSchema);
+  const { error } = adminSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    const hashed_password = await bcrypt.hash(req.body.password, salt);
+
+    const newAdmin = new User({
+      name: req.body.name,
+      username: req.body.username,
+      email: req.body.email,
+      password: hashed_password,
+      role: "",
+      org: req.body.org,
+      verifiedByAdmin: true,
+      hasChangedPassword: false,
+    });
+
+    await newAdmin.save();
+    res.json({ message: "Admin created successfully" });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "Server error", err });
+  }
+};
+
+// Delete admin
+const deleteAdmin = async (req, res) => {
+  const User = connections.Main.model("User", UserSchema);
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: "Admin deleted" });
+  } catch (err) {
+    res.status(500).json({ error: "Server error", err });
+  }
+};
+
+module.exports = {
+  registerNewUser,
+  LoginUser,
+  deleteall,
+  createAdmin,
+  deleteAdmin,
+  getAdmins,
+};

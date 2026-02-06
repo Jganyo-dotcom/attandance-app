@@ -1,5 +1,11 @@
 const express = require("express");
-const { LoginUser, registerNewUser, deleteall } = require("./User_controller");
+const {
+  LoginUser,
+  registerNewUser,
+  deleteall,
+  createAdmin,
+  getAdmins,
+} = require("./User_controller");
 const {
   verif_staff_account,
   unblock_staff_account,
@@ -110,5 +116,9 @@ router.get(
 );
 router.delete("/admin/unverify/:id", authmiddleware, CheckroleonAll, unverify);
 router.delete("/admin/:id/delete", authmiddleware, CheckroleonAll, deleteAdmin);
+
+// manager
+router.get("/get-all-admins", getAdmins);
+router.post("/admin/create", createAdmin);
 
 module.exports = router;
