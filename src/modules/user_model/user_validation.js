@@ -23,8 +23,15 @@ const validationForCreateSchema = Joi.object({
     .required(),
 });
 
+const validationForPasswordChange = Joi.object({
+  currentPassword: Joi.string().min(6).required(),
+  newPassword: Joi.string().min(6).required(),
+  confirmPassword: Joi.string().min(6).required(),
+});
+
 module.exports = {
   validationForRegisterSchema,
   validationForLogin,
   validationForCreateSchema,
+  validationForPasswordChange,
 };

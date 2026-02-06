@@ -4,7 +4,10 @@ const sessionSchema = require("../../../models/session");
 const UserSchema = require("../../../models/user.model");
 const { connections } = require("../../../config/db");
 
-const { validationForCreateSchema } = require("../user_validation");
+const {
+  validationForCreateSchema,
+  validationForPasswordChange,
+} = require("../user_validation");
 const ExcelJS = require("exceljs");
 
 const verif_staff_account = async (req, res) => {
@@ -107,8 +110,6 @@ const getAllStaff = async (req, res) => {
       .select("name username email login_attempt") // only needed fields
       .sort({ [sortBy]: sortDir })
       .lean();
-
- 
 
     return res.status(200).json({
       data: accounts,
@@ -434,7 +435,7 @@ const getAllPersons = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(limit)
       .sort({ createdAt: -1 });
-   
+
     res.json({
       message: "All is well",
       staff,
@@ -618,7 +619,26 @@ const AdminChangePassword = async (req, res) => {
     // Always use the main DB connection
     const User = connections.Main.model("User", UserSchema);
     const adminId = req.params.id;
-    const { currentPassword, newPassword } = req.body;
+
+    // Validate request body
+    const { error } = validationForPasswordChange.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+    // Prevent same password reuse
+    if (currentPassword === newPassword) {
+      return res
+        .status(401)
+        .json({ error: "New password cannot be the same as current password" });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(401).json({ error: "Passwords don't match" });
+    }
 
     // Find admin by ID
     const admin = await User.findById(adminId);
