@@ -211,10 +211,10 @@ const unverify = async (req, res) => {
 // const { validationForCreateSchema } = require("../validation");
 
 // Create a new session
-const User = connections.Main.model("User", UserSchema);
 
 const createSession = async (req, res) => {
   try {
+    const User = connections.Main.model("User", UserSchema);
     const Session = req.db.model("Session", sessionSchema);
     const today = new Date();
 
