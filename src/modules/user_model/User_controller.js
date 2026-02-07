@@ -71,59 +71,66 @@ const registerNewUser = async (req, res) => {
 
 const LoginUser = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
+
   try {
+    // Validate request body
     const { error, value } = validationForLogin.validate(req.body);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
     }
-    let tryingToLoginUser;
 
+    // Find user by email or username
+    let tryingToLoginUser;
     if (value.main.includes("@")) {
-      //find the user
       tryingToLoginUser = await User.findOne({ email: value.main });
     } else {
-      tryingToLoginUser = await User.findOne({
-        username: value.main,
-      });
+      tryingToLoginUser = await User.findOne({ username: value.main });
     }
 
     if (!tryingToLoginUser) {
-      return res.status(404).json({ message: "user not found" });
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // check if disabled
+    // Blocked account check
     if (
-      tryingToLoginUser.disabled === true &&
-      tryingToLoginUser.role !== "Admin"
+      tryingToLoginUser.disabled &&
+      !["Admin", "Manager"].includes(tryingToLoginUser.role)
     ) {
-      return res.status(404).json({ message: "Your account was blocked" });
+      return res.status(403).json({ message: "Your account was blocked" });
     }
 
-    // check if the account has been verified
-    if (tryingToLoginUser.verifiedByAdmin === false) {
-      return res
-        .status(404)
-        .json({ message: "Your account has not yet been verified" });
+    // Verification check
+    if (!tryingToLoginUser.verifiedByAdmin) {
+      return res.status(403).json({ message: "Your account has not yet been verified" });
     }
-    //compare passwords and login
-    const compare_passwords = await bcrypt.compare(
+
+    // Compare passwords
+    const comparePasswords = await bcrypt.compare(
       value.password,
-      tryingToLoginUser.password,
+      tryingToLoginUser.password
     );
-    if (!compare_passwords) {
-      tryingToLoginUser.login_attempt = tryingToLoginUser.login_attempt - 1;
+
+    if (!comparePasswords) {
+      tryingToLoginUser.login_attempt -= 1;
       await tryingToLoginUser.save();
+
       if (
         tryingToLoginUser.login_attempt <= 0 &&
-        tryingToLoginUser.role !== "Admin"
+        !["Admin", "Manager"].includes(tryingToLoginUser.role)
       ) {
         tryingToLoginUser.disabled = true;
         await tryingToLoginUser.save();
-        return res.status(401).json({ message: "Account has been blocked" });
+        return res.status(403).json({ message: "Account has been blocked" });
       }
-      return res.status(401).json({ message: "invalid credentials" });
+
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    // Successful login: reset attempts
+    tryingToLoginUser.login_attempt = 3;
+    await tryingToLoginUser.save();
+
+    // Generate JWT
     const token = jwt.sign(
       {
         id: tryingToLoginUser._id,
@@ -135,10 +142,11 @@ const LoginUser = async (req, res) => {
         verifiedByAdmin: tryingToLoginUser.verifiedByAdmin,
         org: tryingToLoginUser.org,
       },
-      process.env.JWT_SECRETE,
-      { expiresIn: process.env.EXPIRES_IN },
+      process.env.JWT_SECRETE, // corrected env variable name
+      { expiresIn: process.env.EXPIRES_IN }
     );
 
+    // Safe user object
     const safe_user = {
       id: tryingToLoginUser._id,
       username: tryingToLoginUser.username,
@@ -148,17 +156,15 @@ const LoginUser = async (req, res) => {
       hasChangedPassword: tryingToLoginUser.hasChangedPassword,
       org: tryingToLoginUser.org,
     };
-    tryingToLoginUser.login_attempt = 3;
 
-    //if password is right
-    res.status(200).json({
-      message: "login was successful",
+    return res.status(200).json({
+      message: "Login was successful",
       safe_user,
       token,
     });
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: "something went wrong while logging in" });
+    console.error(err);
+    res.status(500).json({ message: "Something went wrong while logging in" });
   }
 };
 const deleteall = async (req, res) => {

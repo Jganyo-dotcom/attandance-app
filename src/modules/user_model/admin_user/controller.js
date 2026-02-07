@@ -315,8 +315,7 @@ const markAsPresent = async (req, res) => {
     const Session = req.db.model("Session", sessionSchema);
     const People = req.db.model("People", peopleSchema);
     const Attendance = req.db.model("Attendance", attendanceSchema);
-    await Attendance.deleteMany({});
-    return res.status(200).json({ message: "deleted All attendance" });
+
     const { nameId } = req.params;
     const thatSession = await Session.findOne({ status: "Open" }).sort({
       date: -1,
