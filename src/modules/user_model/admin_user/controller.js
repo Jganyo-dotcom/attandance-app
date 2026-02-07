@@ -217,8 +217,6 @@ const createSession = async (req, res) => {
     const User = connections.Main.model("User", UserSchema);
     const Session = req.db.model("Session", sessionSchema);
     const today = new Date();
-    await Session.deleteMany({});
-    return res.status(200).json({ message: "All sessions have been cleared" });
 
     // Check if current user already has an open session
     const existingSession = await Session.findOne({
