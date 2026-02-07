@@ -7,6 +7,7 @@ const { connections } = require("../../../config/db");
 const {
   validationForCreateSchema,
   validationForPasswordChange,
+  updatePersonSchema,
 } = require("../user_validation");
 const ExcelJS = require("exceljs");
 
@@ -430,6 +431,41 @@ const deletePerson = async (req, res) => {
   }
 };
 
+const updatePerson = async (req, res) => {
+  const People = req.db.models.People || req.db.model("People", peopleSchema);
+  const id = req.params.id;
+
+  try {
+    const { error, value } = updatePersonSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+    // Convert to ObjectId explicitly
+    const objectId = new mongoose.Types.ObjectId(id);
+
+    // Apply only the fields provided in req.body
+    const updatedPerson = await People.findByIdAndUpdate(
+      objectId,
+      { $set: req.body },
+      { new: true, runValidators: true }, // return updated doc, enforce schema validation
+    );
+
+    if (!updatedPerson) {
+      return res.status(404).json({ message: "Person not found" });
+    }
+
+    return res.status(200).json({
+      message: `${updatedPerson.name} updated successfully`,
+      updatedPerson,
+    });
+  } catch (err) {
+    console.error("Error updating person:", err);
+    return res
+      .status(500)
+      .json({ message: "Something went wrong", error: err.message });
+  }
+};
+
 // Search person
 const searchPersonByName = async (req, res) => {
   try {
@@ -724,4 +760,5 @@ module.exports = {
   deleteAdmin,
   unverify,
   getAllStaff,
+  updatePerson,
 };
