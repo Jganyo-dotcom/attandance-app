@@ -377,7 +377,7 @@ const markAsAbsent = async (req, res) => {
 const createPerson = async (req, res) => {
   const People = req.db.model("People", peopleSchema);
   const { error, value } = validationForCreateSchema.validate(req.body);
-  if ((error, value))
+  if (error)
     return res.status(400).json({ error: error.details[0].message });
   const existingPhone = await People.findOne({ contact: value.contact });
   if (existingPhone) {
