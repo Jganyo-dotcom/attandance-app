@@ -211,34 +211,42 @@ const unverify = async (req, res) => {
 // const { validationForCreateSchema } = require("../validation");
 
 // Create a new session
+const User = connections.Main.model("User", UserSchema);
+
 const createSession = async (req, res) => {
   try {
     const Session = req.db.model("Session", sessionSchema);
     const today = new Date();
 
+    // Check if current user already has an open session
     const existingSession = await Session.findOne({
       status: "Open",
       author: req.user.id,
     });
+
+    // Check if *any* open session exists
+    const existingSessionByanother = await Session.findOne({ status: "Open" });
+
+    if (
+      existingSessionByanother &&
+      existingSessionByanother.author.toString() !== req.user.id
+    ) {
+      const person = await User.findById(existingSessionByanother.author);
+      return res.status(403).json({
+        message: `${person?.name || "Another user"} has a session open. Ask them to close it.`,
+      });
+    }
+
     if (existingSession) {
-      // Directly call your exportAttendance logic here
+      // Directly call exportAttendance, which streams the file back
       await exportAttendance(
         { params: { sessionId: existingSession._id }, db: req.db },
         res,
       );
-
-      // Then close the session directly
-      await Session.findByIdAndUpdate(existingSession._id, {
-        end: today.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        status: "Closed",
-      });
-
-      return; // response already sent by exportAttendance
+      return; // stop here, response already sent
     }
 
+    // Otherwise create a new session
     const dateOnly = today.toISOString().split("T")[0];
     const startTime = today.toLocaleTimeString([], {
       hour: "2-digit",
