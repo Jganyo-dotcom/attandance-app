@@ -215,6 +215,27 @@ const createSession = async (req, res) => {
   try {
     const Session = req.db.model("Session", sessionSchema);
     const today = new Date();
+
+    // Check for existing open session by this user
+    const existingSession = await Session.findOne({
+      status: "Open",
+      author: req.user.id,
+    });
+    if (existingSession) {
+      // Trigger export and close
+      await fetch(
+        `https://attendance-app-1.onrender.com/api/admin/export-attendance/${existingSession._id}`,
+      );
+      await fetch(
+        `https://attendance-app-1.onrender.com/api/admin/close-session/${existingSession._id}`,
+      );
+
+      return res.status(400).json({
+        message:
+          "You already have an open session. Export and close triggered.",
+      });
+    }
+
     const dateOnly = today.toISOString().split("T")[0];
     const startTime = today.toLocaleTimeString([], {
       hour: "2-digit",

@@ -7,7 +7,7 @@ const port = process.env.PORT || 3000;
 const cors = require("cors");
 const morgan = require("morgan");
 
- const { registerAdminfunction } = require("./src/config/admin.setup");
+// const { registerAdminfunction } = require("./src/config/admin.setup");
 
 app.use(
   cors({
@@ -22,7 +22,7 @@ app.use(
 app.use(morgan("dev")); // logs method, URL, status, response time
 app.use(express.json());
 connectDatabases();
-registerAdminfunction()
+// registerAdminfunction()
 
 app.get("/a", (req, res) => {
   res.send("Hello World!");

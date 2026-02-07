@@ -202,7 +202,7 @@ const createAdmin = async (req, res) => {
       username: req.body.username,
       email: req.body.email,
       password: hashed_password,
-      role: "",
+      role: "Admin",
       org: req.body.org,
       verifiedByAdmin: true,
       hasChangedPassword: false,
