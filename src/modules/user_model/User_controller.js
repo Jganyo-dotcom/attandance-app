@@ -146,6 +146,7 @@ const LoginUser = async (req, res) => {
       email: tryingToLoginUser.email,
       role: tryingToLoginUser.role,
       hasChangedPassword: tryingToLoginUser.hasChangedPassword,
+      org: tryingToLoginUser.org,
     };
     tryingToLoginUser.login_attempt = 3;
 
