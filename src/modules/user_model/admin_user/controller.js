@@ -377,8 +377,7 @@ const markAsAbsent = async (req, res) => {
 const createPerson = async (req, res) => {
   const People = req.db.model("People", peopleSchema);
   const { error, value } = validationForCreateSchema.validate(req.body);
-  if (error)
-    return res.status(400).json({ error: error.details[0].message });
+  if (error) return res.status(400).json({ error: error.details[0].message });
   const existingPhone = await People.findOne({ contact: value.contact });
   if (existingPhone) {
     return res
@@ -446,7 +445,10 @@ const updatePerson = async (req, res) => {
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
     }
-    const existingPhone = await People.findOne({ contact: value.contact });
+    const existingPhone = await People.findOne({
+      contact: value.contact,
+      _id: { $ne: id },
+    });
     if (existingPhone) {
       return res
         .status(400)
