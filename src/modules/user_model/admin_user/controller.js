@@ -224,7 +224,7 @@ const createSession = async (req, res) => {
       author: req.user.id,
     });
 
-    // Check if *any* open session exists
+    // Check if *any* open session exists o
     const existingSessionByanother = await Session.findOne({
       status: "Open",
     }).sort({ createdAt: -1 }); // newest first
