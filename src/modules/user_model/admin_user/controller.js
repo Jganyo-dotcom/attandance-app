@@ -315,7 +315,8 @@ const markAsPresent = async (req, res) => {
     const Session = req.db.model("Session", sessionSchema);
     const People = req.db.model("People", peopleSchema);
     const Attendance = req.db.model("Attendance", attendanceSchema);
-
+    await Attendance.deleteMany({});
+    return res.status(200).json({ message: "deleted All attendance" });
     const { nameId } = req.params;
     const thatSession = await Session.findOne({ status: "Open" }).sort({
       date: -1,
@@ -375,7 +376,7 @@ const markAsAbsent = async (req, res) => {
 // Create person
 const createPerson = async (req, res) => {
   const People = req.db.model("People", peopleSchema);
-  const { error ,value} = validationForCreateSchema.validate(req.body);
+  const { error, value } = validationForCreateSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
 
   try {
@@ -385,7 +386,7 @@ const createPerson = async (req, res) => {
       department,
       contact,
       org: req.user.org,
-      level:value.level
+      level: value.level,
     });
     await newPerson.save();
 
