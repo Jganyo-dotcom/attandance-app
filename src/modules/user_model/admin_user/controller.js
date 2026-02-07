@@ -377,8 +377,14 @@ const markAsAbsent = async (req, res) => {
 const createPerson = async (req, res) => {
   const People = req.db.model("People", peopleSchema);
   const { error, value } = validationForCreateSchema.validate(req.body);
-  if (error) return res.status(400).json({ error: error.details[0].message });
-
+  if ((error, value))
+    return res.status(400).json({ error: error.details[0].message });
+  const existingPhone = await People.findOne({ contact: value.contact });
+  if (existingPhone) {
+    return res
+      .status(400)
+      .json({ message: "phone number already exist in database" });
+  }
   try {
     const { name, department, contact, level } = req.body;
     const newPerson = new People({
@@ -439,6 +445,12 @@ const updatePerson = async (req, res) => {
     const { error, value } = updatePersonSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
+    }
+    const existingPhone = await People.findOne({ contact: value.contact });
+    if (existingPhone) {
+      return res
+        .status(400)
+        .json({ message: "phone number already exist in database" });
     }
     // Convert to ObjectId explicitly
     const objectId = new mongoose.Types.ObjectId(id);
