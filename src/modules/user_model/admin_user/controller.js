@@ -216,24 +216,27 @@ const createSession = async (req, res) => {
     const Session = req.db.model("Session", sessionSchema);
     const today = new Date();
 
-    // Check for existing open session by this user
     const existingSession = await Session.findOne({
       status: "Open",
       author: req.user.id,
     });
     if (existingSession) {
-      // Trigger export and close
-      await fetch(
-        `https://attendance-app-1.onrender.com/api/admin/export-attendance/${existingSession._id}`,
-      );
-      await fetch(
-        `https://attendance-app-1.onrender.com/api/admin/close-session/${existingSession._id}`,
+      // Directly call your exportAttendance logic here
+      await exportAttendance(
+        { params: { sessionId: existingSession._id }, db: req.db },
+        res,
       );
 
-      return res.status(400).json({
-        message:
-          "You already have an open session. Export and close triggered.",
+      // Then close the session directly
+      await Session.findByIdAndUpdate(existingSession._id, {
+        end: today.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        status: "Closed",
       });
+
+      return; // response already sent by exportAttendance
     }
 
     const dateOnly = today.toISOString().split("T")[0];
