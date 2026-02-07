@@ -375,16 +375,17 @@ const markAsAbsent = async (req, res) => {
 // Create person
 const createPerson = async (req, res) => {
   const People = req.db.model("People", peopleSchema);
-  const { error } = validationForCreateSchema.validate(req.body);
+  const { error ,value} = validationForCreateSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
 
   try {
-    const { name, department, contact } = req.body;
+    const { name, department, contact, level } = req.body;
     const newPerson = new People({
       name,
       department,
       contact,
       org: req.user.org,
+      level:value.level
     });
     await newPerson.save();
 

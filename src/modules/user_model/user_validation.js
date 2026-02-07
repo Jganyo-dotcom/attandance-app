@@ -17,6 +17,7 @@ const validationForLogin = Joi.object({
 const validationForCreateSchema = Joi.object({
   name: Joi.string().min(5).max(50).required(),
   department: Joi.string().min(5).max(50).required(),
+  level: Joi.string().min(5).max(50).default("N/A"),
   contact: Joi.string()
     .length(10)
     .pattern(/^[0-9]+$/)

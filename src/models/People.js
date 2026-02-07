@@ -4,6 +4,7 @@ const PeopleSchema = new mongoose.Schema(
   {
     name: { type: String, minlength: 5, required: true },
     department: { type: String, required: true },
+    level: { type: String, required: true, default: "N/A" },
     contact: { type: String, minlength: 10, required: true, unique: true },
     status: { type: String, enum: ["P", "A"], default: "A" },
     org: { type: String, enum: ["Visa", "Teens"], default: "N/A" },
