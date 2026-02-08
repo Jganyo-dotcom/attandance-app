@@ -32,11 +32,21 @@ const validationForPasswordChange = Joi.object({
 
 // Define Joi schema for partial updates (PATCH)
 const updatePersonSchema = Joi.object({
-  name: Joi.string().min(2).max(100),
-  department: Joi.string().min(2).max(100),
-  level: Joi.string().min(1).max(50),
-  contact: Joi.string().length(10).pattern(/^[0-9+\-()\s]+$/),
-}).min(1); // require at least one field
+  name: Joi.string().min(2).max(100).required(),
+  department: Joi.string().min(2).max(100).required(),
+  level: Joi.string().min(1).max(50).required(),
+  contact: Joi.string()
+    .length(10)
+    .pattern(/^[0-9+\-()\s]+$/)
+    .required(),
+}); // require at least one field
+
+const adminUpdate = Joi.object({
+  name: Joi.string().min(5).required(),
+  email: Joi.string().email().required(),
+  username: Joi.string().min(3).required(),
+
+});
 
 module.exports = {
   validationForRegisterSchema,
@@ -44,4 +54,5 @@ module.exports = {
   validationForCreateSchema,
   validationForPasswordChange,
   updatePersonSchema,
+  adminUpdate
 };

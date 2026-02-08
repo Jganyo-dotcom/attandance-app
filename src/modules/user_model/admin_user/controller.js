@@ -8,6 +8,7 @@ const {
   validationForCreateSchema,
   validationForPasswordChange,
   updatePersonSchema,
+  adminUpdate,
 } = require("../user_validation");
 const ExcelJS = require("exceljs");
 
@@ -480,6 +481,59 @@ const updatePerson = async (req, res) => {
   }
 };
 
+const updateadmin = async (req, res) => {
+  const User = connections.Main.model("User", UserSchema);
+  const id = req.params.id;
+
+  try {
+    const { error, value } = adminUpdate.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+    const existingPhone = await User.findOne({
+      email: value.email,
+      _id: { $ne: id },
+    });
+    if (existingPhone) {
+      return res
+        .status(400)
+        .json({ message: "phone number already exist in database" });
+    }
+    const existingUserName = await User.findOne({
+      username: value.username,
+      _id: { $ne: id },
+    });
+    if (existingUserName) {
+      return res
+        .status(400)
+        .json({ message: "Username is already exist in database" });
+    }
+    // Convert to ObjectId explicitly
+    const objectId = new mongoose.Types.ObjectId(id);
+
+    // Apply only the fields provided in req.body
+    const updatedPerson = await User.findByIdAndUpdate(
+      objectId,
+      { $set: req.body },
+      { new: true, runValidators: true }, // return updated doc, enforce schema validation
+    );
+
+    if (!updatedPerson) {
+      return res.status(404).json({ message: "Profile update not found" });
+    }
+
+    return res.status(200).json({
+      message: `${updatedPerson.name} updated successfully`,
+      updatedPerson,
+    });
+  } catch (err) {
+    console.error("Error updating person:", err);
+    return res
+      .status(500)
+      .json({ message: "Something went wrong", error: err.message });
+  }
+};
+
 // Search person
 const searchPersonByName = async (req, res) => {
   try {
@@ -775,4 +829,5 @@ module.exports = {
   unverify,
   getAllStaff,
   updatePerson,
+  updateadmin
 };
