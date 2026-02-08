@@ -481,7 +481,7 @@ const updatePerson = async (req, res) => {
   }
 };
 
-const updateadmin = async (req, res) => {
+const updateAdminAndStaff = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
   const id = req.params.id;
 
@@ -490,14 +490,14 @@ const updateadmin = async (req, res) => {
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
     }
-    const existingPhone = await User.findOne({
+    const existingEmail = await User.findOne({
       email: value.email,
       _id: { $ne: id },
     });
-    if (existingPhone) {
+    if (existingEmail) {
       return res
         .status(400)
-        .json({ message: "phone number already exist in database" });
+        .json({ message: "Email already exist in database" });
     }
     const existingUserName = await User.findOne({
       username: value.username,
@@ -506,7 +506,7 @@ const updateadmin = async (req, res) => {
     if (existingUserName) {
       return res
         .status(400)
-        .json({ message: "Username is already exist in database" });
+        .json({ message: "Username already exist in database" });
     }
     // Convert to ObjectId explicitly
     const objectId = new mongoose.Types.ObjectId(id);
@@ -829,5 +829,5 @@ module.exports = {
   unverify,
   getAllStaff,
   updatePerson,
-  updateadmin
+  updateAdminAndStaff,
 };

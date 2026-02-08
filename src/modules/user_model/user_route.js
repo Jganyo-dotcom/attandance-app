@@ -26,7 +26,7 @@ const {
   unverify,
   getAllStaff,
   updatePerson,
-  updateadmin,
+  updateAdminAndStaff,
 } = require("./admin_user/controller");
 const { CheckroleonAll, checkroleonAll } = require("../../middlewares/role");
 const authmiddleware = require("../../middlewares/auth");
@@ -105,7 +105,7 @@ router.delete(
   deletePerson,
 );
 router.patch("/admin/update/:id", authmiddleware, CheckroleonAll, updatePerson);
-router.patch("/update/me/:id", authmiddleware, CheckroleonAll, updateadmin);
+router.patch("/update/me/:id", authmiddleware, checkroleonAll, updateAdminAndStaff);
 router.post(
   "/admin/change-password/:id",
   authmiddleware,
