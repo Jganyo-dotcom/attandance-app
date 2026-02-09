@@ -11,6 +11,13 @@ const CheckroleonAll = (req, res, next) => {
   next();
 };
 
+const OnlyManager = (req, res) => {
+  if (req.user.role !== "Manager") {
+    return res.status(403).json({ message: "Unauthorized access" });
+  }
+  next();
+};
+
 const checkroleonAll = (req, res, next) => {
   if (
     req.user.role !== "Admin" &&
@@ -22,4 +29,4 @@ const checkroleonAll = (req, res, next) => {
   next();
 };
 
-module.exports = { CheckroleonAll, checkroleonAll };
+module.exports = { CheckroleonAll, checkroleonAll, OnlyManager };

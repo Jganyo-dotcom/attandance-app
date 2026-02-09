@@ -28,7 +28,11 @@ const {
   updatePerson,
   updateAdminAndStaff,
 } = require("./admin_user/controller");
-const { CheckroleonAll, checkroleonAll } = require("../../middlewares/role");
+const {
+  CheckroleonAll,
+  checkroleonAll,
+  OnlyManager,
+} = require("../../middlewares/role");
 const authmiddleware = require("../../middlewares/auth");
 
 const router = express.Router();
@@ -105,7 +109,12 @@ router.delete(
   deletePerson,
 );
 router.patch("/admin/update/:id", authmiddleware, CheckroleonAll, updatePerson);
-router.patch("/update/me/:id", authmiddleware, checkroleonAll, updateAdminAndStaff);
+router.patch(
+  "/update/me/:id",
+  authmiddleware,
+  checkroleonAll,
+  updateAdminAndStaff,
+);
 router.post(
   "/admin/change-password/:id",
   authmiddleware,
@@ -122,7 +131,7 @@ router.delete("/admin/unverify/:id", authmiddleware, CheckroleonAll, unverify);
 router.delete("/admin/:id/delete", authmiddleware, CheckroleonAll, deleteAdmin);
 
 // manager
-router.get("/get-all-admins", getAdmins);
-router.post("/admin/create", createAdmin);
+router.get("/get-all-admins", authmiddleware, OnlyManager, getAdmins);
+router.post("/admin/create", authmiddleware, OnlyManager, createAdmin);
 
 module.exports = router;
