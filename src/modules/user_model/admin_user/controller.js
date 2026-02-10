@@ -218,7 +218,29 @@ const createSession = async (req, res) => {
   try {
     const User = connections.Main.model("User", UserSchema);
     const Session = req.db.model("Session", sessionSchema);
-    const today = new Date();
+    const People = req.db.model("People", peopleSchema);
+    const Attendance = req.db.model("Attendance", attendanceSchema);
+
+    const now = new Date();
+    const dateOnly = now.toISOString().split("T")[0];
+    const startTime = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    // Check if *any* open session exists
+    const existingSessionByAnother = await Session.findOne({
+      status: "Open",
+    }).sort({ createdAt: -1 });
+    if (
+      existingSessionByAnother &&
+      existingSessionByAnother.author.toString() !== req.user.id
+    ) {
+      const person = await User.findById(existingSessionByAnother.author);
+      return res.status(403).json({
+        message: `${person?.name || "Another user"} has a session open. Ask them to close it.`,
+      });
+    }
 
     // Check if current user already has an open session
     const existingSession = await Session.findOne({
@@ -226,37 +248,52 @@ const createSession = async (req, res) => {
       author: req.user.id,
     });
 
-    // Check if *any* open session exists o
-    const existingSessionByanother = await Session.findOne({
-      status: "Open",
-    }).sort({ createdAt: -1 }); // newest first
-    console.log();
-    if (
-      existingSessionByanother &&
-      existingSessionByanother.author.toString() !== req.user.id
-    ) {
-      const person = await User.findById(existingSessionByanother.author);
-      return res.status(403).json({
-        message: `${person?.name || "Another user"} has a session open. Ask them to close it.`,
-      });
-    }
-
     if (existingSession) {
-      // Directly call exportAttendance, which streams the file back
+      // 1. Export attendance for the open session
       await exportAttendance(
         { params: { sessionId: existingSession._id }, db: req.db },
         res,
       );
-      return; // stop here, response already sent
+
+      // 2. Close the session
+      await Session.findByIdAndUpdate(existingSession._id, {
+        end: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        status: "Closed",
+        sessionDate: dateOnly,
+      });
+
+      // Reset all people marked Present back to Absent
+      await People.updateMany({ status: "P" }, { $set: { status: "A" } });
+
+      // Add absent people to Attendance if not already recorded
+      const absentPeople = await People.find({ status: "A" }).select("_id");
+      const existingRecords = await Attendance.find({
+        sessionId: existingSession._id,
+        status: "A",
+      }).select("name");
+      const existingIds = new Set(
+        existingRecords.map((r) => r.name.toString()),
+      );
+      const newAbsent = absentPeople.filter(
+        (p) => !existingIds.has(p._id.toString()),
+      );
+
+      if (newAbsent.length > 0) {
+        const docs = newAbsent.map((p) => ({
+          sessionId: existingSession._id,
+          name: p._id,
+          status: "A",
+          date: dateOnly,
+          markedBy: req.user.id,
+        }));
+        await Attendance.insertMany(docs);
+      }
+
+      // Important: stop here, because exportAttendance already streamed the file
+      return;
     }
 
     // Otherwise create a new session
-    const dateOnly = today.toISOString().split("T")[0];
-    const startTime = today.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
     const newSession = new Session({
       date: dateOnly,
       start: startTime,
