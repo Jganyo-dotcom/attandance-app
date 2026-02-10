@@ -683,7 +683,6 @@ const getAllAbsent = async (req, res) => {
 };
 
 // Export attendance
-
 const exportAttendance = async (req, res) => {
   try {
     const Session =
@@ -694,12 +693,21 @@ const exportAttendance = async (req, res) => {
 
     const { sessionId } = req.params;
 
-    const session = await Session.findById(sessionId);
+    const session = await Session.findById(sessionId).lean();
     if (!session) {
       return res.status(404).json({ message: "Session not found" });
     }
 
-    const people = await People.find({ status: { $in: ["P", "A"] } });
+    // Fetch all people once
+    const people = await People.find({ status: { $in: ["P", "A"] } }).lean();
+
+    // Fetch all attendance records for this session once
+    const attendanceRecords = await Attendance.find({
+      sessionId: session._id,
+    }).lean();
+    const attendanceMap = new Map(
+      attendanceRecords.map((r) => [r.name.toString(), r]),
+    );
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Attendance");
@@ -712,7 +720,7 @@ const exportAttendance = async (req, res) => {
     titleRow.fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: "FF1F4E78" }, // dark blue
+      fgColor: { argb: "FF1F4E78" },
     };
     worksheet.mergeCells(`A1:E1`);
 
@@ -736,16 +744,13 @@ const exportAttendance = async (req, res) => {
     headerRow.fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: "FF2E75B6" }, // lighter blue
+      fgColor: { argb: "FF2E75B6" },
     };
 
     // Add rows with alternating colors
     let rowIndex = 5;
     for (const p of people) {
-      const attendanceRecord = await Attendance.findOne({
-        sessionId: session._id,
-        name: p._id,
-      });
+      const attendanceRecord = attendanceMap.get(p._id.toString());
 
       const row = worksheet.addRow({
         name: p.name,
@@ -753,18 +758,16 @@ const exportAttendance = async (req, res) => {
         contact: p.contact,
         status: p.status,
         markedAt: attendanceRecord
-          ? attendanceRecord.createdAt.toLocaleString()
+          ? new Date(attendanceRecord.createdAt).toLocaleString()
           : "",
       });
 
-      // Alternate row colors
       row.fill = {
         type: "pattern",
         pattern: "solid",
         fgColor: { argb: rowIndex % 2 === 0 ? "FFF2F2F2" : "FFFFFFFF" },
       };
 
-      // Add borders
       row.eachCell((cell) => {
         cell.border = {
           top: { style: "thin" },
@@ -787,7 +790,7 @@ const exportAttendance = async (req, res) => {
     footerRow.fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: "FF1F4E78" }, // dark blue background
+      fgColor: { argb: "FF1F4E78" },
     };
     worksheet.mergeCells(`A${footerRow.number}:E${footerRow.number}`);
 
