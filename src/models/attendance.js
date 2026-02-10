@@ -18,6 +18,9 @@ const RegisterSchema = new mongoose.Schema(
       ref: "Users",
       required: true,
     },
+    reported: { type: Boolean, default: false },
+    forget: { type: Boolean, default: false },
+    date: { type: Date },
   },
   { timestamps: true },
 );

@@ -27,6 +27,7 @@ const {
   getAllStaff,
   updatePerson,
   updateAdminAndStaff,
+  endOfDayReport,
 } = require("./admin_user/controller");
 const {
   CheckroleonAll,
@@ -129,6 +130,12 @@ router.get(
 );
 router.delete("/admin/unverify/:id", authmiddleware, CheckroleonAll, unverify);
 router.delete("/admin/:id/delete", authmiddleware, CheckroleonAll, deleteAdmin);
+router.get(
+  "/end-of-day-report",
+  authmiddleware,
+  CheckroleonAll,
+  endOfDayReport,
+);
 
 // manager
 router.get("/get-all-admins", authmiddleware, OnlyManager, getAdmins);

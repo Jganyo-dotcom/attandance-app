@@ -280,29 +280,63 @@ const createSession = async (req, res) => {
 // Close session
 const closeSession = async (req, res) => {
   try {
-    const Session =
-      (await req.db.models.Session) || req.db.model("Session", sessionSchema);
+    const Session = req.db.model("Session", sessionSchema);
     const People = req.db.model("People", peopleSchema);
+    const Attendance = req.db.model("Attendance", attendanceSchema);
 
     const { sessionId } = req.params;
-    const today = new Date();
 
+    const now = new Date();
+    const todayString = now.toISOString().split("T")[0];
+    const timeString = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    // 1. Mark the session as closed
     const closedSession = await Session.findByIdAndUpdate(
       sessionId,
       {
-        end: today.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        end: timeString,
         status: "Closed",
+        sessionDate: todayString,
       },
       { new: true },
     );
 
-    if (!closedSession)
+    if (!closedSession) {
       return res.status(404).json({ message: "Session not found" });
+    }
 
+    // 2. Reset all people who were marked Present back to Absent
     await People.updateMany({ status: "P" }, { $set: { status: "A" } });
+
+    // 3. Find all absent people
+    const absentPeople = await People.find({ status: "A" }).select("_id");
+
+    // 4. Find which absent people already have attendance records
+    const existingRecords = await Attendance.find({
+      sessionId,
+      status: "A",
+    }).select("name");
+    const existingIds = new Set(existingRecords.map((r) => r.name.toString()));
+
+    // 5. Filter out those already recorded
+    const newAbsent = absentPeople.filter(
+      (p) => !existingIds.has(p._id.toString()),
+    );
+
+    // 6. Bulk insert new absent records
+    if (newAbsent.length > 0) {
+      const docs = newAbsent.map((p) => ({
+        sessionId,
+        name: p._id,
+        status: "A",
+        date: todayString,
+        markedBy: req.user.id,
+      }));
+      await Attendance.insertMany(docs);
+    }
 
     return res.status(200).json({ message: "Session closed", closedSession });
   } catch (err) {
@@ -317,22 +351,46 @@ const markAsPresent = async (req, res) => {
     const Session = req.db.model("Session", sessionSchema);
     const People = req.db.model("People", peopleSchema);
     const Attendance = req.db.model("Attendance", attendanceSchema);
+    const today = new Date().toISOString().split("T")[0];
 
     const { nameId } = req.params;
+
+    // Find the latest open session
     const thatSession = await Session.findOne({ status: "Open" }).sort({
       date: -1,
     });
-    if (!thatSession)
+    if (!thatSession) {
       return res.status(400).json({ message: "No open session" });
+    }
 
+    // Check if person exists
+    const person = await People.findById(nameId);
+    if (!person) {
+      return res.status(404).json({ message: "Person not found" });
+    }
+
+    // Prevent duplicate attendance
+    const exists = await Attendance.findOne({
+      session: thatSession._id,
+      person: nameId,
+    });
+    if (exists) {
+      return res.status(400).json({ message: "Already marked present" });
+    }
+
+    // Create attendance record
     const presentPerson = new Attendance({
       sessionId: thatSession._id,
-      status: "P",
       name: nameId,
+      status: "P",
       markedBy: req.user.id,
+      date: today,
     });
 
+    // Update person status
     await People.findByIdAndUpdate(nameId, { status: "P" });
+
+    // Save attendance
     await presentPerson.save();
 
     return res.status(200).json({ message: "Marked present", presentPerson });
@@ -809,6 +867,141 @@ const AdminChangePassword = async (req, res) => {
   }
 };
 
+const pastAttendance = async () => {
+  // Models from different connections
+  const User = connections.Main.model("User", UserSchema);
+  const attendance1 = connections.Teens.model("Attendance", attendanceSchema);
+  const attendance2 = connections.Youths.model("Attendance", attendanceSchema);
+  const attendance3 = connections.Adults.model("Attendance", attendanceSchema);
+
+  // 1. Query all unreported attendance records from each schema
+  const records1 = await attendance1.find({ reported: false, forget: false });
+  const records2 = await attendance2.find({ reported: false, forget: false });
+  const records3 = await attendance3.find({ reported: false, forget: false });
+
+  // 2. Combine them into one array
+  const allRecords = [...records1, ...records2, ...records3];
+
+  // 3. Group by date and count P vs A
+  const dailyReport = {};
+  allRecords.forEach((r) => {
+    const day = new Date(r.date).toISOString().split("T")[0]; // normalize to YYYY-MM-DD
+    if (!dailyReport[day]) {
+      dailyReport[day] = { P: 0, A: 0 };
+    }
+    if (r.status === "P") {
+      dailyReport[day].P += 1;
+    } else if (r.status === "A") {
+      dailyReport[day].A += 1;
+    }
+  });
+
+  // 4. Build a table-like array for easier reporting
+  const reportTable = Object.entries(dailyReport).map(([date, counts]) => ({
+    date,
+    present: counts.P,
+    absent: counts.A,
+  }));
+
+  // 5. Format as HTML table for email body
+  let htmlBody = `
+    <h2>Monthly Attendance Report</h2>
+    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+      <thead>
+        <tr style="background-color:#007bff;color:white;">
+          <th>Date</th>
+          <th>Present (P)</th>
+          <th>Absent (A)</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  reportTable.forEach((row) => {
+    htmlBody += `
+      <tr>
+        <td>${row.date}</td>
+        <td>${row.present}</td>
+        <td>${row.absent}</td>
+      </tr>
+    `;
+  });
+  htmlBody += `
+      </tbody>
+    </table>
+  `;
+
+  // 6. Get recipients
+  const users = await User.find({});
+  const recipients = users.map((u) => u.email);
+
+  // 7. Send email (replace with nodemailer or your mailer)
+  await sendEmail({
+    to: recipients,
+    subject: "Monthly Attendance Report",
+    body: htmlBody, // send HTML instead of JSON
+    html: true, // flag to indicate HTML content
+  });
+
+  // 8. Mark records as reported so they aren’t sent again
+  await attendance1.updateMany(
+    { reported: false },
+    { $set: { reported: true } },
+  );
+  await attendance2.updateMany(
+    { reported: false },
+    { $set: { reported: true } },
+  );
+  await attendance3.updateMany(
+    { reported: false },
+    { $set: { reported: true } },
+  );
+
+  return reportTable;
+};
+
+// Controller function to return end-of-day attendance summary
+
+// now let this be based on the databe you are requesting like that othes
+const endOfDayReport = async (req, res) => {
+  try {
+    // Get Attendance model from middleware-injected db
+    const Attendance =
+      req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
+
+    // Get date from query string, default to today if not provided
+    const requestedDate =
+      req.query.date || new Date().toISOString().split("T")[0];
+
+    // Query attendance records for that date
+    const records = await Attendance.find({ date: requestedDate });
+
+    // If no records for requested date, return "no data"
+    if (records.length === 0) {
+      return res.json({
+        message: `No attendance data available for ${requestedDate}`,
+      });
+    }
+
+    // Count P vs A
+    let present = 0;
+    let absent = 0;
+    records.forEach((r) => {
+      if (r.status === "P") present++;
+      if (r.status === "A") absent++;
+    });
+
+    // Respond with JSON the frontend can use
+    return res.json({
+      date: requestedDate,
+      present,
+      absent,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
 module.exports = {
   verif_staff_account,
   unblock_staff_account,
@@ -830,4 +1023,5 @@ module.exports = {
   getAllStaff,
   updatePerson,
   updateAdminAndStaff,
+  endOfDayReport,
 };
