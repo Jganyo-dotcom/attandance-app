@@ -261,12 +261,13 @@ const createSession = async (req, res) => {
         status: "Closed",
         sessionDate: dateOnly,
       });
+      const absentPeople = await People.find({ status: "A" }).select("_id");
 
       // Reset all people marked Present back to Absent
       await People.updateMany({ status: "P" }, { $set: { status: "A" } });
 
       // Add absent people to Attendance if not already recorded
-      const absentPeople = await People.find({ status: "A" }).select("_id");
+
       const existingRecords = await Attendance.find({
         sessionId: existingSession._id,
         status: "A",
@@ -345,11 +346,12 @@ const closeSession = async (req, res) => {
       return res.status(404).json({ message: "Session not found" });
     }
 
+    const absentPeople = await People.find({ status: "A" }).select("_id");
+
     // 2. Reset all people who were marked Present back to Absent
     await People.updateMany({ status: "P" }, { $set: { status: "A" } });
 
     // 3. Find all absent people
-    const absentPeople = await People.find({ status: "A" }).select("_id");
 
     // 4. Find which absent people already have attendance records
     const existingRecords = await Attendance.find({
