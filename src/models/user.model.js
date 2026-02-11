@@ -13,7 +13,7 @@ const UserSchema = new mongoose.Schema(
     hasChangedPassword: { type: Boolean, required: true, default: false },
     org: {
       type: String,
-      enum: ["Main", "Visa", "Teens", "N/A", "Visa-UOE"],
+      enum: ["Main", "Visa", "Teens", "N/A", "VisaUOE"],
       default: "N/A",
     },
   },
