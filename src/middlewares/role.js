@@ -11,7 +11,7 @@ const CheckroleonAll = (req, res, next) => {
   next();
 };
 
-const OnlyManager = (req, res) => {
+const OnlyManager = (req, res, next) => {
   if (req.user.role !== "Manager") {
     return res.status(403).json({ message: "Unauthorized access" });
   }
