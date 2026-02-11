@@ -42,20 +42,11 @@ const registerNewUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashed_password = await bcrypt.hash(value.password, salt);
 
-    let imageUrl = null;
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "buses",
-      });
-      imageUrl = result.secure_url;
-    }
-
     // go on to register user
     const User_info = new User({
       email: value.email,
       name: value.name,
       username: value.username,
-      dp: imageUrl || "logo",
       role: "Staff",
       password: hashed_password,
       org: value.org,
