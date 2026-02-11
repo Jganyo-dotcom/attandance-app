@@ -42,11 +42,22 @@ const registerNewUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashed_password = await bcrypt.hash(value.password, salt);
 
+    let imageUrl = null;
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "buses",
+      });
+      imageUrl = result.secure_url;
+    }
+
     // go on to register user
     const User_info = new User({
       email: value.email,
       name: value.name,
       username: value.username,
+      dp:
+        imageUrl ||
+        "https://www.google.com/imgres?q=devs&imgurl=https%3A%2F%2Fupload.wikimedia.org%2Fwikipedia%2Fen%2F8%2F8f%2FDevs_Title_Card.png&imgrefurl=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FDevs_(TV_series)&docid=KbZeQOQ2ieMbIM&tbnid=LHsCFt94XsSu0M&vet=12ahUKEwiorszovM-SAxUoXEEAHYjBEaEQnPAOegQIFhAB..i&w=446&h=223&hcb=2&ved=2ahUKEwiorszovM-SAxUoXEEAHYjBEaEQnPAOegQIFhAB",
       role: "Staff",
       password: hashed_password,
       org: value.org,
@@ -101,13 +112,15 @@ const LoginUser = async (req, res) => {
 
     // Verification check
     if (!tryingToLoginUser.verifiedByAdmin) {
-      return res.status(403).json({ message: "Your account has not yet been verified" });
+      return res
+        .status(403)
+        .json({ message: "Your account has not yet been verified" });
     }
 
     // Compare passwords
     const comparePasswords = await bcrypt.compare(
       value.password,
-      tryingToLoginUser.password
+      tryingToLoginUser.password,
     );
 
     if (!comparePasswords) {
@@ -143,7 +156,7 @@ const LoginUser = async (req, res) => {
         org: tryingToLoginUser.org,
       },
       process.env.JWT_SECRETE, // corrected env variable name
-      { expiresIn: process.env.EXPIRES_IN }
+      { expiresIn: process.env.EXPIRES_IN },
     );
 
     // Safe user object
@@ -152,6 +165,7 @@ const LoginUser = async (req, res) => {
       username: tryingToLoginUser.username,
       name: tryingToLoginUser.name,
       email: tryingToLoginUser.email,
+      dp: tryingToLoginUser.dp,
       role: tryingToLoginUser.role,
       hasChangedPassword: tryingToLoginUser.hasChangedPassword,
       org: tryingToLoginUser.org,

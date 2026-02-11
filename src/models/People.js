@@ -7,7 +7,7 @@ const PeopleSchema = new mongoose.Schema(
     level: { type: String, required: true, default: "N/A" },
     contact: { type: String, minlength: 10, required: true, unique: true },
     status: { type: String, enum: ["P", "A"], default: "A" },
-    org: { type: String, enum: ["Visa", "Teens"], default: "N/A" },
+    org: { type: String, enum: ["Visa", "Teens", "Visa-UOE"], default: "N/A" },
   },
   { timestamps: true },
 );

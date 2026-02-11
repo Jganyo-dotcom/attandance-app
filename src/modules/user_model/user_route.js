@@ -35,11 +35,12 @@ const {
   OnlyManager,
 } = require("../../middlewares/role");
 const authmiddleware = require("../../middlewares/auth");
+const { upload } = require("../../middlewares/cloud");
 
 const router = express.Router();
 
 router.post("/guest/login", LoginUser);
-router.post("/guest/register", registerNewUser);
+router.post("/guest/register", upload.single("image"), registerNewUser);
 
 //admin routes
 

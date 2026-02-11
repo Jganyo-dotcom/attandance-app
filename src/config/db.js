@@ -16,7 +16,13 @@ const connectDatabases = async () => {
     connections.Teens = mongoose.createConnection(process.env.MONGO_URI_TEENS);
     await connections.Teens.asPromise();
 
-    console.log("All databases connected");
+    // connect to uoe DB
+    connections.VisaUOE = mongoose.createConnection(
+      process.env.MONGO_URI_VISA_UOE,
+    );
+    await connections.VisaUOE.asPromise();
+
+    console.log("All 4 databases connected");
   } catch (error) {
     console.error("Database connection error:", error);
   }
