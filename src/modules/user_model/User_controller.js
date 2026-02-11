@@ -55,9 +55,7 @@ const registerNewUser = async (req, res) => {
       email: value.email,
       name: value.name,
       username: value.username,
-      dp:
-        imageUrl ||
-        "https://www.google.com/imgres?q=devs&imgurl=https%3A%2F%2Fupload.wikimedia.org%2Fwikipedia%2Fen%2F8%2F8f%2FDevs_Title_Card.png&imgrefurl=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FDevs_(TV_series)&docid=KbZeQOQ2ieMbIM&tbnid=LHsCFt94XsSu0M&vet=12ahUKEwiorszovM-SAxUoXEEAHYjBEaEQnPAOegQIFhAB..i&w=446&h=223&hcb=2&ved=2ahUKEwiorszovM-SAxUoXEEAHYjBEaEQnPAOegQIFhAB",
+      dp: imageUrl || "logo",
       role: "Staff",
       password: hashed_password,
       org: value.org,
@@ -165,7 +163,6 @@ const LoginUser = async (req, res) => {
       username: tryingToLoginUser.username,
       name: tryingToLoginUser.name,
       email: tryingToLoginUser.email,
-      dp: tryingToLoginUser.dp,
       role: tryingToLoginUser.role,
       hasChangedPassword: tryingToLoginUser.hasChangedPassword,
       org: tryingToLoginUser.org,
