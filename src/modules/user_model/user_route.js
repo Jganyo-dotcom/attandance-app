@@ -5,6 +5,8 @@ const {
   deleteall,
   createAdmin,
   getAdmins,
+  passLink,
+  resetPassword,
 } = require("./User_controller");
 const {
   verif_staff_account,
@@ -36,11 +38,12 @@ const {
 } = require("../../middlewares/role");
 const authmiddleware = require("../../middlewares/auth");
 
-
 const router = express.Router();
 
 router.post("/guest/login", LoginUser);
 router.post("/guest/register", registerNewUser);
+router.post("/forget-password", passLink);
+router.post("/reset-password-Admin", resetPassword);
 
 //admin routes
 

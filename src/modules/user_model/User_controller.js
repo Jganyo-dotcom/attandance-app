@@ -3,6 +3,8 @@ const People = require("../../models/People");
 const session = require("../../models/session");
 const UserSchema = require("../../models/user.model");
 const { connections } = require("../../config/db");
+const crypto = require("crypto");
+const { sendMail } = require("../../models/utils/email");
 
 // Always bind User to the main connection
 
@@ -236,6 +238,68 @@ const deleteAdmin = async (req, res) => {
   }
 };
 
+const passLink = async (req, res) => {
+  const User = connections.Main.model("User", UserSchema);
+  const { identifier } = req.body;
+
+  const user = await User.findOne({
+    $or: [{ email: identifier }, { username: identifier }],
+  });
+
+  if (!user) {
+    return res.json({
+      message: "If this account exists, a reset link will be sent.",
+    });
+  }
+
+  // Generate token
+  const token = crypto.randomBytes(32).toString("hex");
+  user.resetToken = token;
+  user.resetTokenExpiry = Date.now() + 3600000; // 1 hour
+  await user.save();
+
+  const resetLink = `https://elikemtech.netlify.app/reset-password.html?token=${token}`;
+  await sendMail({
+    to: user.email,
+    subject: "Password Reset",
+    html: `<p>Kindly Click <a href="${resetLink}">here</a> to reset your password.If you didnt request this kindly report to your admin</p>`,
+  });
+
+  res.json({ message: "If this account exists, a reset link will be sent." });
+};
+
+// Reset password endpoint
+const resetPassword = async (req, res) => {
+  const User = connections.Main.model("User", UserSchema);
+  const { token, newPassword } = req.body;
+
+  try {
+    // Find user with matching token and not expired
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired token" });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update user record
+    user.password = hashedPassword;
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+    await user.save();
+
+    res.json({ message: "Password updated successfully" });
+  } catch (err) {
+    console.error("Error resetting password:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 module.exports = {
   registerNewUser,
   LoginUser,
@@ -243,4 +307,6 @@ module.exports = {
   createAdmin,
   deleteAdmin,
   getAdmins,
+  resetPassword,
+  passLink,
 };

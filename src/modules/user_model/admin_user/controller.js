@@ -852,6 +852,7 @@ const exportAttendance = async (req, res) => {
 };
 
 const bcrypt = require("bcrypt");
+const { sendMail } = require("../../../models/utils/email");
 
 const AdminChangePassword = async (req, res) => {
   try {
@@ -908,97 +909,130 @@ const AdminChangePassword = async (req, res) => {
       .json({ message: "Something went wrong", error: err.message });
   }
 };
-
 const pastAttendance = async () => {
-  // Models from different connections
   const User = connections.Main.model("User", UserSchema);
-  const attendance1 = connections.Teens.model("Attendance", attendanceSchema);
-  const attendance2 = connections.Youths.model("Attendance", attendanceSchema);
-  const attendance3 = connections.Adults.model("Attendance", attendanceSchema);
+  const attendanceTeens = connections.Teens.model(
+    "Attendance",
+    attendanceSchema,
+  );
+  const attendanceVisa = connections.Visa.model("Attendance", attendanceSchema);
+  const attendanceUOE = connections.VisaUOE.model(
+    "Attendance",
+    attendanceSchema,
+  );
 
-  // 1. Query all unreported attendance records from each schema
-  const records1 = await attendance1.find({ reported: false, forget: false });
-  const records2 = await attendance2.find({ reported: false, forget: false });
-  const records3 = await attendance3.find({ reported: false, forget: false });
+  // Helpers
+  function groupByDate(records) {
+    const dailyReport = {};
+    records.forEach((r) => {
+      const day = new Date(r.date).toISOString().split("T")[0];
+      if (!dailyReport[day]) dailyReport[day] = { P: 0, A: 0 };
+      if (r.status === "P") dailyReport[day].P++;
+      if (r.status === "A") dailyReport[day].A++;
+    });
+    return Object.entries(dailyReport).map(([date, counts]) => ({
+      date,
+      present: counts.P,
+      absent: counts.A,
+    }));
+  }
 
-  // 2. Combine them into one array
-  const allRecords = [...records1, ...records2, ...records3];
-
-  // 3. Group by date and count P vs A
-  const dailyReport = {};
-  allRecords.forEach((r) => {
-    const day = new Date(r.date).toISOString().split("T")[0]; // normalize to YYYY-MM-DD
-    if (!dailyReport[day]) {
-      dailyReport[day] = { P: 0, A: 0 };
-    }
-    if (r.status === "P") {
-      dailyReport[day].P += 1;
-    } else if (r.status === "A") {
-      dailyReport[day].A += 1;
-    }
-  });
-
-  // 4. Build a table-like array for easier reporting
-  const reportTable = Object.entries(dailyReport).map(([date, counts]) => ({
-    date,
-    present: counts.P,
-    absent: counts.A,
-  }));
-
-  // 5. Format as HTML table for email body
-  let htmlBody = `
-    <h2>Monthly Attendance Report</h2>
-    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
-      <thead>
-        <tr style="background-color:#007bff;color:white;">
-          <th>Date</th>
-          <th>Present (P)</th>
-          <th>Absent (A)</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-  reportTable.forEach((row) => {
-    htmlBody += `
-      <tr>
-        <td>${row.date}</td>
-        <td>${row.present}</td>
-        <td>${row.absent}</td>
-      </tr>
+  function buildTable(title, reportTable) {
+    let html = `
+      <h2>${title}</h2>
+      <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+        <thead>
+          <tr style="background-color:#007bff;color:white;">
+            <th>Date</th><th>Present (P)</th><th>Absent (A)</th>
+          </tr>
+        </thead><tbody>
     `;
+    reportTable.forEach((row) => {
+      html += `<tr><td>${row.date}</td><td>${row.present}</td><td>${row.absent}</td></tr>`;
+    });
+    html += `</tbody></table>`;
+    return html;
+  }
+
+  // Query records
+  const recordsTeens = await attendanceTeens.find({
+    reported: false,
+    forget: false,
   });
-  htmlBody += `
-      </tbody>
-    </table>
-  `;
-
-  // 6. Get recipients
-  const users = await User.find({});
-  const recipients = users.map((u) => u.email);
-
-  // 7. Send email (replace with nodemailer or your mailer)
-  await sendEmail({
-    to: recipients,
-    subject: "Monthly Attendance Report",
-    body: htmlBody, // send HTML instead of JSON
-    html: true, // flag to indicate HTML content
+  const recordsVisa = await attendanceVisa.find({
+    reported: false,
+    forget: false,
+  });
+  const recordsUOE = await attendanceUOE.find({
+    reported: false,
+    forget: false,
   });
 
-  // 8. Mark records as reported so they aren’t sent again
-  await attendance1.updateMany(
-    { reported: false },
-    { $set: { reported: true } },
-  );
-  await attendance2.updateMany(
-    { reported: false },
-    { $set: { reported: true } },
-  );
-  await attendance3.updateMany(
-    { reported: false },
-    { $set: { reported: true } },
-  );
+  // Group
+  const reportTeens = groupByDate(recordsTeens);
+  const reportVisa = groupByDate(recordsVisa);
+  const reportUOE = groupByDate(recordsUOE);
 
-  return reportTable;
+  // Build HTML
+  const htmlTeens = buildTable("Teens Attendance", reportTeens);
+  const htmlVisa = buildTable("Visa Attendance", reportVisa);
+  const htmlUOE = buildTable("VisaUOE Attendance", reportUOE);
+
+  // Master email body
+  const htmlBody = htmlTeens + htmlVisa + htmlUOE;
+
+  // Send master report to central address
+  console.log("Sending master report to: elikemjjames@gmail.com");
+  await sendMail({
+    to: "elikemjjames@gmail.com",
+    subject: "Monthly Attendance Report From Elitech",
+    html: htmlBody,
+  });
+
+  // Send each table to admins of that org
+  const adminsTeens = await User.find({ role: "admin", org: "Teens" });
+  const adminsVisa = await User.find({ role: "admin", org: "Visa" });
+  const adminsUOE = await User.find({ role: "admin", org: "VisaUOE" });
+
+  if (adminsTeens.length) {
+    const emails = adminsTeens.map((u) => u.email);
+    console.log("Sending Teens report to admins:", emails);
+    await sendMail({
+      to: emails,
+      subject: "Teens Attendance Report from EliTech",
+      html: htmlTeens,
+    });
+  }
+
+  if (adminsVisa.length) {
+    const emails = adminsVisa.map((u) => u.email);
+    console.log("Sending Visa report to admins:", emails);
+    await sendMail({
+      to: emails,
+      subject: "Visa Attendance Report from EliTech",
+      html: htmlVisa,
+    });
+  }
+
+  if (adminsUOE.length) {
+    const emails = adminsUOE.map((u) => u.email);
+    console.log("Sending VisaUOE report to admins:", emails);
+    await sendMail({
+      to: emails,
+      subject: "VisaUOE Attendance Report from EliTech",
+      html: htmlUOE,
+    });
+  }
+
+  // After sending, clear collections to free space
+  console.log("Clearing attendance collections to free space...");
+  await attendanceTeens.deleteMany({});
+  await attendanceVisa.deleteMany({});
+  await attendanceUOE.deleteMany({});
+
+  console.log("Attendance collections emptied.");
+
+  return { reportTeens, reportVisa, reportUOE };
 };
 
 // Controller function to return end-of-day attendance summary
@@ -1066,4 +1100,5 @@ module.exports = {
   updatePerson,
   updateAdminAndStaff,
   endOfDayReport,
+  pastAttendance,
 };
