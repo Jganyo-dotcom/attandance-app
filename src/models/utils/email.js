@@ -1,4 +1,7 @@
 const nodemailer = require("nodemailer");
+const dns = require("dns");
+
+dns.setDefaultResultsOrder("ipv4first");
 
 // configure transporter (example: Gmail)
 const transporter = nodemailer.createTransport({
