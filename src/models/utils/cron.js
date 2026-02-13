@@ -7,7 +7,7 @@ const { connectDatabases } = require("../../config/db");
 async function start() {
   await connectDatabases(); // wait until all DBs are connected
 
-  cron.schedule("*/16 * * * *", async () => {
+  cron.schedule("*/1 * * * *", async () => {
     console.log("Running pastAttendance job...");
     try {
       await pastAttendance();

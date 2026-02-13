@@ -12,10 +12,7 @@ const morgan = require("morgan");
 
 app.use(
   cors({
-    origin: [
-      "https://elikemtech.netlify.app",
-      "http://127.0.0.1:5500",
-    ],
+    origin: ["https://elikemtech.netlify.app", "http://127.0.0.1:5500"],
   }),
 );
 
