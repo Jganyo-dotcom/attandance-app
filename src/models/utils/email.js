@@ -1,7 +1,5 @@
 const nodemailer = require("nodemailer");
-const dns = require("dns");
 
-dns.setDefaultResultsOrder("ipv4first");
 
 // configure transporter (example: Gmail)
 const transporter = nodemailer.createTransport({
@@ -9,9 +7,10 @@ const transporter = nodemailer.createTransport({
   port: 587,
   secure: false,
   auth: {
-    user: process.env.EMAIL_USER, // your email address
-    pass: process.env.EMAIL_PASS, // your email password or app-specific password
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
+  family: 4, // force IPv4
 });
 
 // function to send mail
