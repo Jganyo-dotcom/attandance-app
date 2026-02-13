@@ -43,7 +43,7 @@ const router = express.Router();
 router.post("/guest/login", LoginUser);
 router.post("/guest/register", registerNewUser);
 router.post("/forget-password", passLink);
-router.post("/reset-password-Admin", resetPassword);
+router.post("/reset-password", resetPassword);
 
 //admin routes
 
