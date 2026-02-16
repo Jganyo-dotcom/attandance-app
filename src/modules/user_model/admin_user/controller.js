@@ -330,6 +330,11 @@ const closeSession = async (req, res) => {
       hour: "2-digit",
       minute: "2-digit",
     });
+    // if its already closed do nothing
+    const isClosed = await Session.findById(sessionId);
+    if (isClosed.status === "Closed") {
+      return res.status(200).json({ message: "Session closed already" });
+    }
 
     // 1. Mark the session as closed
     const closedSession = await Session.findByIdAndUpdate(
@@ -1026,9 +1031,7 @@ const pastAttendance = async () => {
 
   // After sending, clear collections to free space
   console.log("Clearing attendance collections to free space...");
-  await attendanceTeens.deleteMany({});
-  await attendanceVisa.deleteMany({});
-  await attendanceUOE.deleteMany({});
+
 
   console.log("Attendance collections emptied.");
 
