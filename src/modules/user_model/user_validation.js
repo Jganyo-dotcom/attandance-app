@@ -34,7 +34,7 @@ const validationForPasswordChange = Joi.object({
 const updatePersonSchema = Joi.object({
   name: Joi.string().min(2).max(100).required(),
   department: Joi.string().min(2).max(100).required(),
-  level: Joi.string().min(1).max(50).required(),
+  level: Joi.string().min(1).max(50).default("N/A"),
   contact: Joi.string()
     .length(10)
     .pattern(/^[0-9+\-()\s]+$/)
