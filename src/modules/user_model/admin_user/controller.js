@@ -261,7 +261,9 @@ const createSession = async (req, res) => {
         status: "Closed",
         sessionDate: dateOnly,
       });
-      const absentPeople = await People.find({ status: "A" }).select("_id");
+      const absentPeople = await People.find({ status: "A" }).select(
+        "_id gender",
+      );
 
       // Reset all people marked Present back to Absent
       await People.updateMany({ status: "P" }, { $set: { status: "A" } });
@@ -284,6 +286,7 @@ const createSession = async (req, res) => {
           sessionId: existingSession._id,
           name: p._id,
           status: "A",
+          gender: p.gender,
           date: dateOnly,
           markedBy: req.user.id,
         }));
@@ -351,7 +354,9 @@ const closeSession = async (req, res) => {
       return res.status(404).json({ message: "Session not found" });
     }
 
-    const absentPeople = await People.find({ status: "A" }).select("_id");
+    const absentPeople = await People.find({ status: "A" }).select(
+      "_id gender",
+    );
 
     // 2. Reset all people who were marked Present back to Absent
     await People.updateMany({ status: "P" }, { $set: { status: "A" } });
@@ -376,6 +381,7 @@ const closeSession = async (req, res) => {
         sessionId,
         name: p._id,
         status: "A",
+        gender: p.gender,
         date: todayString,
         markedBy: req.user.id,
       }));
@@ -415,8 +421,8 @@ const markAsPresent = async (req, res) => {
 
     // Prevent duplicate attendance
     const exists = await Attendance.findOne({
-      session: thatSession._id,
-      person: nameId,
+      sessionId: thatSession._id,
+      name: nameId,
     });
     if (exists) {
       return res.status(400).json({ message: "Already marked present" });
@@ -429,6 +435,7 @@ const markAsPresent = async (req, res) => {
       status: "P",
       markedBy: req.user.id,
       date: today,
+      gender: person.gender,
     });
 
     // Update person status
@@ -993,7 +1000,7 @@ const pastAttendance = async () => {
   const htmlBody = htmlTeens + htmlVisa + htmlUOE;
 
   // Send master report to central address
-  console.log("Sending master report to: elikemjjames@gmail.com");
+  console.log("Sending master report to: elikemjames@gmail.com");
   await sendMail({
     to: "elikemjjames@gmail.com",
     subject: "Monthly Attendance Report From Elitech",
@@ -1037,7 +1044,7 @@ const pastAttendance = async () => {
 
   // After sending, clear collections to free space
   console.log("Clearing attendance collections to free space...");
-
+  // await attendanceTeens.deleteMany({});
   console.log("Attendance collections emptied.");
 
   return { reportTeens, reportVisa, reportUOE };
@@ -1103,27 +1110,51 @@ const genderReport = async (req, res) => {
       });
     }
 
+    // Group by person+gender to spot duplicates
+    const grouped = {};
+    records.forEach((r) => {
+      const key = `${r.name}-${r.gender}`;
+      grouped[key] = (grouped[key] || 0) + 1;
+    });
+
+    console.log("Grouped attendance counts:");
+    console.log(grouped);
+
     // Counters
     let femalePresent = 0;
     let femaleAbsent = 0;
     let malePresent = 0;
     let maleAbsent = 0;
+    let unknownPresent = 0;
+    let unknownAbsent = 0;
 
     records.forEach((r) => {
       if (r.gender === "F") {
         if (r.status === "P") femalePresent++;
         if (r.status === "A") femaleAbsent++;
-      }
-      if (r.gender === "M") {
+      } else if (r.gender === "M") {
         if (r.status === "P") malePresent++;
         if (r.status === "A") maleAbsent++;
+      } else {
+        // Handle missing/unknown genders
+        if (r.status === "P") unknownPresent++;
+        if (r.status === "A") unknownAbsent++;
       }
     });
+
+    console.log("Female Present:", femalePresent);
+    console.log("Female Absent:", femaleAbsent);
+    console.log("Male Present:", malePresent);
+    console.log("Male Absent:", maleAbsent);
+    console.log("Unknown Present:", unknownPresent);
+    console.log("Unknown Absent:", unknownAbsent);
 
     return res.json({
       date: requestedDate,
       females: { present: femalePresent, absent: femaleAbsent },
       males: { present: malePresent, absent: maleAbsent },
+      unknowns: { present: unknownPresent, absent: unknownAbsent },
+      duplicates: grouped, // expose grouped counts so you can see duplicates
     });
   } catch (err) {
     console.error(err);
@@ -1154,5 +1185,5 @@ module.exports = {
   updateAdminAndStaff,
   endOfDayReport,
   pastAttendance,
-  genderReport
+  genderReport,
 };
