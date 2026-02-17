@@ -8,6 +8,7 @@ const PeopleSchema = new mongoose.Schema(
     contact: { type: String, minlength: 10, required: true, unique: true },
     status: { type: String, enum: ["P", "A"], default: "A" },
     org: { type: String, enum: ["Visa", "Teens", "VisaUOE"], default: "N/A" },
+    gender: { type: String, enum: ["M", "F", "N/A"], default: "N/A" },
   },
   { timestamps: true },
 );

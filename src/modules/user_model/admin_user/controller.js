@@ -495,6 +495,7 @@ const createPerson = async (req, res) => {
       contact,
       org: req.user.org,
       level: value.level,
+      gender: value.gender,
     });
     await newPerson.save();
 
@@ -672,6 +673,9 @@ const getAllPersons = async (req, res) => {
     }
 
     const total = await People.countDocuments(query);
+    const females = await People.countDocuments({ gender: "F" });
+    const males = await People.countDocuments({ gender: "M" });
+
     const staff = await People.find(query)
       .skip((page - 1) * limit)
       .limit(limit)
@@ -684,6 +688,8 @@ const getAllPersons = async (req, res) => {
       totalPages: Math.ceil(total / limit),
       total,
       limit,
+      females,
+      males,
     });
   } catch (err) {
     console.error("Error fetching staff:", err);
@@ -1032,7 +1038,6 @@ const pastAttendance = async () => {
   // After sending, clear collections to free space
   console.log("Clearing attendance collections to free space...");
 
-
   console.log("Attendance collections emptied.");
 
   return { reportTeens, reportVisa, reportUOE };
@@ -1081,6 +1086,51 @@ const endOfDayReport = async (req, res) => {
   }
 };
 
+const genderReport = async (req, res) => {
+  try {
+    const Attendance =
+      req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
+
+    const requestedDate =
+      req.query.date || new Date().toISOString().split("T")[0];
+
+    // Query attendance records for that date
+    const records = await Attendance.find({ date: requestedDate });
+
+    if (records.length === 0) {
+      return res.json({
+        message: `No attendance data available for ${requestedDate}`,
+      });
+    }
+
+    // Counters
+    let femalePresent = 0;
+    let femaleAbsent = 0;
+    let malePresent = 0;
+    let maleAbsent = 0;
+
+    records.forEach((r) => {
+      if (r.gender === "F") {
+        if (r.status === "P") femalePresent++;
+        if (r.status === "A") femaleAbsent++;
+      }
+      if (r.gender === "M") {
+        if (r.status === "P") malePresent++;
+        if (r.status === "A") maleAbsent++;
+      }
+    });
+
+    return res.json({
+      date: requestedDate,
+      females: { present: femalePresent, absent: femaleAbsent },
+      males: { present: malePresent, absent: maleAbsent },
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
 module.exports = {
   verif_staff_account,
   unblock_staff_account,
@@ -1104,4 +1154,5 @@ module.exports = {
   updateAdminAndStaff,
   endOfDayReport,
   pastAttendance,
+  genderReport
 };

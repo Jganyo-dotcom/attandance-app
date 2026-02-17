@@ -30,6 +30,7 @@ const {
   updatePerson,
   updateAdminAndStaff,
   endOfDayReport,
+  genderReport,
 } = require("./admin_user/controller");
 const {
   CheckroleonAll,
@@ -140,6 +141,8 @@ router.get(
   CheckroleonAll,
   endOfDayReport,
 );
+
+router.get("/gender-report", authmiddleware, CheckroleonAll, genderReport);
 
 // manager
 router.get("/get-all-admins", authmiddleware, OnlyManager, getAdmins);
