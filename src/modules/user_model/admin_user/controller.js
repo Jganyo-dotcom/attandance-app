@@ -488,22 +488,44 @@ const createPerson = async (req, res) => {
   const People = req.db.model("People", peopleSchema);
   const { error, value } = validationForCreateSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
-  const existingPhone = await People.findOne({ contact: value.contact });
-  if (existingPhone) {
-    return res
-      .status(400)
-      .json({ message: "phone number already exist in database" });
+
+  // Duplicate check only if contact provided
+  if (value.contact) {
+    const existingPhone = await People.findOne({ contact: value.contact });
+    if (existingPhone) {
+      return res
+        .status(400)
+        .json({ message: "Phone number already exists in database" });
+    }
   }
+
+  lastCount = await People.findOne().sort({ count: -1 }).exec();
+  console.log(lastCount.count);
+  const nextCount = lastCount ? lastCount.count + 1 : 1;
+  console.log(nextCount);
+  console.log(value.department)
+
+
   try {
-    const { name, department, contact, level } = req.body;
-    const newPerson = new People({
+    const { name, department } = req.body;
+
+    const newPersonData = {
       name,
       department,
-      contact,
       org: req.user.org,
       level: value.level,
       gender: value.gender,
-    });
+      count: nextCount,
+    };
+
+    if (value.contact && value.contact.trim().length > 0) {
+      newPersonData.contact = value.contact;
+    } else {
+      newPersonData.contact = String(nextCount).padStart(10, "0");
+      newPersonData.count = nextCount;
+    }
+
+    const newPerson = new People(newPersonData);
     await newPerson.save();
 
     return res
@@ -556,28 +578,63 @@ const updatePerson = async (req, res) => {
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
     }
-    const existingPhone = await People.findOne({
-      contact: value.contact,
-      _id: { $ne: id },
-    });
-    if (existingPhone) {
-      return res
-        .status(400)
-        .json({ message: "phone number already exist in database" });
-    }
-    // Convert to ObjectId explicitly
-    const objectId = new mongoose.Types.ObjectId(id);
 
-    // Apply only the fields provided in req.body
-    const updatedPerson = await People.findByIdAndUpdate(
-      objectId,
-      { $set: req.body },
-      { new: true, runValidators: true }, // return updated doc, enforce schema validation
-    );
-
-    if (!updatedPerson) {
+    // Fetch current person
+    const currentPerson = await People.findById(id);
+    if (!currentPerson) {
       return res.status(404).json({ message: "Person not found" });
     }
+
+    // Helper: detect generated contacts (10 digits, all padded zeros except last digits)
+    const isGeneratedContact = (c) => /^0{5,}\d+$/.test(c);
+
+    if (value.contact) {
+      // If new contact is generated
+      if (isGeneratedContact(value.contact)) {
+        // If it's not the same as their existing generated contact
+        if (currentPerson.contact !== value.contact) {
+          // Check if another person already has this generated contact
+          const existing = await People.findOne({
+            contact: value.contact,
+            _id: { $ne: id },
+          });
+          if (existing) {
+            return res.status(400).json({
+              message: "Generated contact already exists. Cannot modify.",
+            });
+          }
+          // Reject outright if user is trying to tweak to another generated value
+          return res.status(400).json({
+            message: "You cannot change system-generated contact values.",
+          });
+        }
+      } else {
+        // For real phone numbers, enforce uniqueness
+        const existingPhone = await People.findOne({
+          contact: value.contact,
+          _id: { $ne: id },
+        });
+        if (existingPhone) {
+          return res
+            .status(400)
+            .json({ message: "Phone number already exists in database" });
+        }
+      }
+    }
+
+    // Build update object safely
+    const updateData = { ...req.body };
+    if (value.contact) {
+      updateData.contact = value.contact;
+    } else {
+      delete updateData.contact;
+    }
+
+    const updatedPerson = await People.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true },
+    );
 
     return res.status(200).json({
       message: `${updatedPerson.name} updated successfully`,

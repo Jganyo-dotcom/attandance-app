@@ -21,8 +21,7 @@ const validationForCreateSchema = Joi.object({
   gender: Joi.string().required(),
   contact: Joi.string()
     .length(10)
-    .pattern(/^[0-9]+$/)
-    .required(),
+    .pattern(/^[0-9]+$/),
 });
 
 const validationForPasswordChange = Joi.object({
@@ -38,7 +37,7 @@ const updatePersonSchema = Joi.object({
   level: Joi.string().min(1).max(50).default("N/A"),
   gender: Joi.string().required(),
   contact: Joi.string()
-    .length(10)
+    .min(10)
     .pattern(/^[0-9+\-()\s]+$/)
     .required(),
 }); // require at least one field
