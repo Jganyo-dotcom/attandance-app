@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const { connections } = require("../config/db"); // import your connections object
 
 const authmiddleware = (req, res, next) => {
-  console.log("authmiddleware");
+
   try {
     const token = req.headers["authorization"]?.split(" ")[1];
     if (!token) {

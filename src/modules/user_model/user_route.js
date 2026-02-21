@@ -31,6 +31,8 @@ const {
   updateAdminAndStaff,
   endOfDayReport,
   genderReport,
+  personalReport,
+  personalReportHistory,
 } = require("./admin_user/controller");
 const {
   CheckroleonAll,
@@ -140,6 +142,19 @@ router.get(
   authmiddleware,
   CheckroleonAll,
   endOfDayReport,
+);
+router.get(
+  "/personal-report/:personId",
+  authmiddleware,
+  CheckroleonAll,
+  personalReport,
+);
+
+router.get(
+  "/personal-report-history/:personId",
+  authmiddleware,
+  CheckroleonAll,
+  personalReportHistory,
 );
 
 router.get("/gender-report", authmiddleware, CheckroleonAll, genderReport);

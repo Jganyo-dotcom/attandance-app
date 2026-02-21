@@ -502,9 +502,6 @@ const createPerson = async (req, res) => {
   lastCount = await People.findOne().sort({ count: -1 }).exec();
   console.log(lastCount.count);
   const nextCount = lastCount ? lastCount.count + 1 : 1;
-  console.log(nextCount);
-  console.log(value.department)
-
 
   try {
     const { name, department } = req.body;
@@ -1219,6 +1216,82 @@ const genderReport = async (req, res) => {
   }
 };
 
+const personalReport = async (req, res) => {
+  try {
+    const Session =
+      req.db.models.Session || req.db.model("Session", sessionSchema);
+    const People = req.db.models.People || req.db.model("People", peopleSchema);
+    const Attendance =
+      req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
+
+    // Default to today's date if none provided
+    const requestedDate =
+      req.query.date || new Date().toISOString().split("T")[0];
+    const personId = req.params.personId;
+
+    // Query attendance records for that person on that date
+    const records = await Attendance.find({
+      date: requestedDate,
+      name: personId,
+    }).populate("name", "name department contact");
+    if (records.length === 0) {
+      return res.status(404).json({
+        message: `No attendance data availablee for person on ${requestedDate}`,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Attendance records found",
+      date: requestedDate,
+      person: personId,
+      records,
+    });
+  } catch (err) {
+    console.error("Error fetching personal report:", err);
+    return res.status(500).json({
+      message: "Something went wrong while fetching personal report",
+      error: err.message,
+    });
+  }
+};
+
+// GET /api/personal-report/:person?date=YYYY-MM-DD&range=downward
+const personalReportHistory = async (req, res) => {
+  try {
+    const Attendance =
+      req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
+
+    const requestedDate =
+      req.query.date || new Date().toISOString().split("T")[0];
+    const personId = req.params.personId;
+
+    // Query all attendance records for that person from requestedDate onward
+    const records = await Attendance.find({
+      name: personId,
+      date: { $gte: requestedDate },
+    }).sort({ date: 1 }); // ascending order
+
+    if (records.length === 0) {
+      return res.status(404).json({
+        message: `No attendance history found for ${personId} from ${requestedDate} onward`,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Attendance history retrieved successfully",
+      person: personId,
+      fromDate: requestedDate,
+      records,
+    });
+  } catch (err) {
+    console.error("Error fetching attendance history:", err);
+    return res.status(500).json({
+      message: "Something went wrong while fetching attendance history",
+      error: err.message,
+    });
+  }
+};
+
 module.exports = {
   verif_staff_account,
   unblock_staff_account,
@@ -1243,4 +1316,6 @@ module.exports = {
   endOfDayReport,
   pastAttendance,
   genderReport,
+  personalReport,
+  personalReportHistory
 };
