@@ -10,11 +10,7 @@ const morgan = require("morgan");
 
 // const { registerAdminfunction } = require("./src/config/admin.setup");
 
-app.use(
-  cors({
-    origin: ["https://elikemtech.netlify.app", "http://127.0.0.1:5500"],
-  }),
-);
+app.use(cors());
 
 // Use morgan with the "combined" or "dev" format
 app.use(morgan("dev")); // logs method, URL, status, response time
@@ -28,6 +24,6 @@ app.get("/a", (req, res) => {
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/api", userRoute);
 
-app.listen(port, () => {
+app.listen(port, "0.0.0.0", () => {
   console.log(` server listening on port ${port}`);
 });

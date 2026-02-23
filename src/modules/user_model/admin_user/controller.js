@@ -1292,6 +1292,20 @@ const personalReportHistory = async (req, res) => {
   }
 };
 
+// GET /api/get-person/:id
+const getpersonById = async (req, res) => {
+  const People = req.db.model("People", peopleSchema);
+  try {
+    const person = await People.findById(req.params.id);
+    if (!person) return res.status(404).json({ message: "Person not found" });
+    return res.status(200).json({ name: person.name, _id: person._id });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Error fetching person", error: err.message });
+  }
+};
+
 module.exports = {
   verif_staff_account,
   unblock_staff_account,
@@ -1317,5 +1331,6 @@ module.exports = {
   pastAttendance,
   genderReport,
   personalReport,
-  personalReportHistory
+  personalReportHistory,
+  getpersonById
 };
