@@ -34,6 +34,8 @@ const {
   personalReport,
   personalReportHistory,
   getpersonById,
+  exportAttendanceHtml,
+  findFrequentAbsentees,
 } = require("./admin_user/controller");
 const {
   CheckroleonAll,
@@ -201,13 +203,22 @@ router.get(
   personalReportHistory,
 );
 
-router.get("/gender-report", authmiddleware, CheckroleonAll, genderReport);
 router.get(
-  "/get-person/:id",
+  "/export-Attendance-Html",
   authmiddleware,
-  checkroleonAll,
-  getpersonById,
+  CheckroleonAll,
+  exportAttendanceHtml,
 );
+
+router.get(
+  "/frequent-absentees",
+  authmiddleware,
+  CheckroleonAll,
+  findFrequentAbsentees,
+);
+
+router.get("/gender-report", authmiddleware, CheckroleonAll, genderReport);
+router.get("/get-person/:id", authmiddleware, checkroleonAll, getpersonById);
 
 // manager
 router.get("/get-all-admins", authmiddleware, OnlyManager, getAdmins);

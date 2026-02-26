@@ -1292,6 +1292,47 @@ const personalReportHistory = async (req, res) => {
   }
 };
 
+const exportAttendanceHtml = async (req, res) => {
+  try {
+    const Session =
+      req.db.models.Session || req.db.model("Session", sessionSchema);
+    const People = req.db.models.People || req.db.model("People", peopleSchema);
+    const Attendance =
+      req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
+
+    const Users = connections.Main.model("User", UserSchema);
+
+    const { date } = req.query;
+
+    const data = await Attendance.find({ date })
+      .populate("name") // People from tenant DB
+      .populate("sessionId"); // Session from tenant DB
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ message: "Attendance not found" });
+    }
+
+    // Manually resolve markedBy from main DB
+    const enriched = await Promise.all(
+      data.map(async (row) => {
+        const markedUser = await Users.findById(row.markedBy).lean();
+        return {
+          ...row.toObject(),
+          markedBy: markedUser ? markedUser.name : null,
+        };
+      }),
+    );
+
+    res.json({
+      attendance: enriched,
+      footer: "Thank you for choosing ELITech. Contact: 0593320375",
+    });
+  } catch (err) {
+    console.error("Error exporting attendance:", err);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
 // GET /api/get-person/:id
 const getpersonById = async (req, res) => {
   const People = req.db.model("People", peopleSchema);
@@ -1303,6 +1344,58 @@ const getpersonById = async (req, res) => {
     res
       .status(500)
       .json({ message: "Error fetching person", error: err.message });
+  }
+};
+
+// Find people who have missed 3 or more meetings
+const findFrequentAbsentees = async (req, res) => {
+  try {
+    const Attendance =
+      req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
+
+    // Group by person and count non-P statuses
+    const pipeline = [
+      {
+        $match: { status: { $ne: "P" } }, // not present
+      },
+      {
+        $group: {
+          _id: "$name", // group by person
+          missedCount: { $sum: 1 },
+          sessions: { $push: "$sessionId" },
+        },
+      },
+      {
+        $match: { missedCount: { $gte: 3 } }, // missed 3 or more
+      },
+      {
+        $lookup: {
+          from: "people", // collection name for People
+          localField: "_id",
+          foreignField: "_id",
+          as: "person",
+        },
+      },
+      {
+        $unwind: "$person",
+      },
+      {
+        $project: {
+          _id: 0,
+          personName: "$person.name",
+          department: "$person.department",
+          missedCount: 1,
+          sessions: 1,
+        },
+      },
+    ];
+
+    const absentees = await Attendance.aggregate(pipeline);
+
+    res.json({message:"Success", absentees });
+  } catch (err) {
+    console.error("Error finding frequent absentees:", err);
+    res.status(500).json({ message: "Something went wrong" });
   }
 };
 
@@ -1332,5 +1425,7 @@ module.exports = {
   genderReport,
   personalReport,
   personalReportHistory,
-  getpersonById
+  getpersonById,
+  exportAttendanceHtml,
+  findFrequentAbsentees
 };
