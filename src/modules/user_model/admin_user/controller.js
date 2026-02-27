@@ -500,11 +500,14 @@ const createPerson = async (req, res) => {
   }
 
   lastCount = await People.findOne().sort({ count: -1 }).exec();
-  console.log(lastCount.count);
+
   const nextCount = lastCount ? lastCount.count + 1 : 1;
 
   try {
     const { name, department } = req.body;
+    if (nextCount === null) {
+      nextCount = 1;
+    }
 
     const newPersonData = {
       name,
@@ -1392,7 +1395,7 @@ const findFrequentAbsentees = async (req, res) => {
 
     const absentees = await Attendance.aggregate(pipeline);
 
-    res.json({message:"Success", absentees });
+    res.json({ message: "Success", absentees });
   } catch (err) {
     console.error("Error finding frequent absentees:", err);
     res.status(500).json({ message: "Something went wrong" });
@@ -1427,5 +1430,5 @@ module.exports = {
   personalReportHistory,
   getpersonById,
   exportAttendanceHtml,
-  findFrequentAbsentees
+  findFrequentAbsentees,
 };
