@@ -1466,7 +1466,7 @@ const absenteesOrPresentPeople = async (req, res) => {
     }
 
     // Success
-    console.log(absentees);
+
     return res.status(200).json({
       message: "Your list is ready",
       absentees,
