@@ -36,6 +36,7 @@ const {
   getpersonById,
   exportAttendanceHtml,
   findFrequentAbsentees,
+  absenteesOrPresentPeople,
 } = require("./admin_user/controller");
 const {
   CheckroleonAll,
@@ -217,6 +218,12 @@ router.get(
   findFrequentAbsentees,
 );
 
+router.get(
+  "/freq-absentees-present/:statusOne/:statusTwo",
+  authmiddleware,
+  CheckroleonAll,
+  absenteesOrPresentPeople
+);
 router.get("/gender-report", authmiddleware, CheckroleonAll, genderReport);
 router.get("/get-person/:id", authmiddleware, checkroleonAll, getpersonById);
 

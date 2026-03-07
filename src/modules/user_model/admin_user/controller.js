@@ -1402,6 +1402,84 @@ const findFrequentAbsentees = async (req, res) => {
   }
 };
 
+const absenteesOrPresentPeople = async (req, res) => {
+  try {
+    console.log("hit");
+    const People = req.db.model("People", peopleSchema);
+    const Attendance =
+      req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
+
+    const { dayOnedate, dayTwodate } = req.query;
+    const { statusOne, statusTwo } = req.params;
+
+    // Validate inputs
+    if (!dayOnedate || !dayTwodate || !statusOne || !statusTwo) {
+      return res.status(400).json({
+        message:
+          "Missing required parameters (dayOnedate, dayTwodate, statusOne, statusTwo).",
+      });
+    }
+
+    const dayOne = await Attendance.find({ date: dayOnedate }).populate(
+      "name",
+    );
+    const dayTwo = await Attendance.find({ date: dayTwodate }).populate(
+      "name",
+    );
+
+    // Guard against no records
+    if (!dayOne.length) {
+      return res.status(404).json({
+        message: `No attendance records found for Day One (${dayOnedate}).`,
+        absentees: [],
+      });
+    }
+    if (!dayTwo.length) {
+      return res.status(404).json({
+        message: `No attendance records found for Day Two (${dayTwodate}).`,
+        absentees: [],
+      });
+    }
+
+    // Extract people
+    const peopledayOne = dayOne.map((p) => ({
+      name: p.name,
+      status: p.status,
+    }));
+    const peopledayTwo = dayTwo.map((p) => ({
+      name: p.name,
+      status: p.status,
+    }));
+
+    // Compare
+    const absentees = peopledayTwo.filter((p2) => {
+      const p1 = peopledayOne.find((p1) => p1.name.equals(p2.name));
+      return p1 && p1.status === statusOne && p2.status === statusTwo;
+    });
+
+    // Guard against no matches
+    if (!absentees.length) {
+      return res.status(200).json({
+        message: "No matching absentees found for the given criteria.",
+        absentees: [],
+      });
+    }
+
+    // Success
+    console.log(absentees);
+    return res.status(200).json({
+      message: "Your list is ready",
+      absentees,
+    });
+  } catch (error) {
+    console.error("Error in absenteesOrPresentPeople:", error);
+    return res.status(500).json({
+      message: "Internal server error. Please try again later.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   verif_staff_account,
   unblock_staff_account,
@@ -1431,4 +1509,5 @@ module.exports = {
   getpersonById,
   exportAttendanceHtml,
   findFrequentAbsentees,
+  absenteesOrPresentPeople,
 };
