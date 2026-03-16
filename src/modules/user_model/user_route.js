@@ -222,7 +222,7 @@ router.get(
   "/freq-absentees-present/:statusOne/:statusTwo",
   authmiddleware,
   CheckroleonAll,
-  absenteesOrPresentPeople
+  absenteesOrPresentPeople,
 );
 router.get("/gender-report", authmiddleware, CheckroleonAll, genderReport);
 router.get("/get-person/:id", authmiddleware, checkroleonAll, getpersonById);

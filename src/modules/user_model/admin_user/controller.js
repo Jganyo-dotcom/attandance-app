@@ -515,6 +515,7 @@ const createPerson = async (req, res) => {
       org: req.user.org,
       level: value.level,
       gender: value.gender,
+      memberType: value.memberType,
       count: nextCount,
     };
 
@@ -1058,24 +1059,31 @@ const pastAttendance = async () => {
 
   // Send master report to central address
   console.log("Sending master report to: elikemjames@gmail.com");
+
   await sendMail({
     to: "elikemjjames@gmail.com",
-    subject: "Monthly Attendance Report From Elitech",
-    html: htmlBody,
+    subject: "Attendance Report From Elitech",
+    html: `
+    <p>This mail is system generated. Please do not reply.</p>
+    ${htmlBody}
+  `,
   });
 
   // Send each table to admins of that org
-  const adminsTeens = await User.find({ role: "admin", org: "Teens" });
-  const adminsVisa = await User.find({ role: "admin", org: "Visa" });
-  const adminsUOE = await User.find({ role: "admin", org: "VisaUOE" });
+  const adminsTeens = await User.find({ role: "Admin", org: "Teens" });
+  const adminsVisa = await User.find({ role: "Admin", org: "Visa" });
+  const adminsUOE = await User.find({ role: "Admin", org: "VisaUOE" });
 
   if (adminsTeens.length) {
     const emails = adminsTeens.map((u) => u.email);
     console.log("Sending Teens report to admins:", emails);
     await sendMail({
       to: emails,
-      subject: "Teens Attendance Report from EliTech",
-      html: htmlTeens,
+      subject: "Teens Attendance Report from EliTech (Ignore 2026-02-21)",
+      html: `
+    <p>This mail is system generated. Please do not reply.</p>
+    ${htmlTeens}
+  `,
     });
   }
 
@@ -1085,7 +1093,10 @@ const pastAttendance = async () => {
     await sendMail({
       to: emails,
       subject: "Visa Attendance Report from EliTech",
-      html: htmlVisa,
+      html: `
+    <p>This mail is system generated. Please do not reply. Do well to tick attendace or account will be disabled</p>
+    ${htmlVisa}
+  `,
     });
   }
 
@@ -1099,9 +1110,6 @@ const pastAttendance = async () => {
     });
   }
 
-  // After sending, clear collections to free space
-  console.log("Clearing attendance collections to free space...");
-  // await attendanceTeens.deleteMany({});
   console.log("Attendance collections emptied.");
 
   return { reportTeens, reportVisa, reportUOE };
@@ -1420,12 +1428,8 @@ const absenteesOrPresentPeople = async (req, res) => {
       });
     }
 
-    const dayOne = await Attendance.find({ date: dayOnedate }).populate(
-      "name",
-    );
-    const dayTwo = await Attendance.find({ date: dayTwodate }).populate(
-      "name",
-    );
+    const dayOne = await Attendance.find({ date: dayOnedate }).populate("name");
+    const dayTwo = await Attendance.find({ date: dayTwodate }).populate("name");
 
     // Guard against no records
     if (!dayOne.length) {
@@ -1451,9 +1455,14 @@ const absenteesOrPresentPeople = async (req, res) => {
       status: p.status,
     }));
 
-    // Compare
+    // Compare safely
     const absentees = peopledayTwo.filter((p2) => {
-      const p1 = peopledayOne.find((p1) => p1.name.equals(p2.name));
+      const p1 = peopledayOne.find((p1) => {
+        // Handle ObjectId, populated doc, or string
+        const id1 = p1.name?._id || p1.name;
+        const id2 = p2.name?._id || p2.name;
+        return String(id1) === String(id2);
+      });
       return p1 && p1.status === statusOne && p2.status === statusTwo;
     });
 
@@ -1466,7 +1475,6 @@ const absenteesOrPresentPeople = async (req, res) => {
     }
 
     // Success
-
     return res.status(200).json({
       message: "Your list is ready",
       absentees,

@@ -9,6 +9,7 @@ const PeopleSchema = new mongoose.Schema(
     status: { type: String, enum: ["P", "A"], default: "A" },
     org: { type: String, enum: ["Visa", "Teens", "VisaUOE"], default: "N/A" },
     count: { type: Number, required: true, default: 1 },
+    memberType: { type: Boolean, required: false, default: false },
     gender: { type: String, enum: ["M", "F", "N/A"], default: "N/A" },
   },
   { timestamps: true },
