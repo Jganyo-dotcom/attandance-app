@@ -267,6 +267,7 @@ const createSession = async (req, res) => {
 
       // Reset all people marked Present back to Absent
       await People.updateMany({ status: "P" }, { $set: { status: "A" } });
+      await People.updateMany({ staying: true }, { $set: { staying: false } });
 
       // Add absent people to Attendance if not already recorded
 
@@ -360,6 +361,7 @@ const closeSession = async (req, res) => {
 
     // 2. Reset all people who were marked Present back to Absent
     await People.updateMany({ status: "P" }, { $set: { status: "A" } });
+    await People.updateMany({ staying: true }, { $set: { staying: false } });
 
     // 3. Find all absent people
 
@@ -929,6 +931,7 @@ const exportAttendance = async (req, res) => {
 
 const bcrypt = require("bcrypt");
 const { sendMail } = require("../../../models/utils/email");
+const StayedSchema = require("../../../models/stayed");
 
 const AdminChangePassword = async (req, res) => {
   try {
@@ -1488,6 +1491,129 @@ const absenteesOrPresentPeople = async (req, res) => {
   }
 };
 
+const thoseWhoStayed = async (req, res) => {
+  try {
+    const Attendance =
+      req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
+    const People = req.db.models.People || req.db.model("People", peopleSchema);
+    const Stayed = req.db.models.Stayed || req.db.model("Stayed", StayedSchema);
+
+    const requestedDate =
+      req.query.date || new Date().toISOString().split("T")[0];
+
+    const list = await Stayed.find({ date: requestedDate }).populate("name");
+
+    if (!list || list.length === 0) {
+      return res.status(404).json({ message: "This is empty" });
+    }
+
+    return res.status(200).json({ message: "success", list });
+  } catch (error) {
+    console.error("Error fetching stayed list:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const markthoseWhoStayed = async (req, res) => {
+  const Session = req.db.model("Session", sessionSchema);
+  const People = req.db.model("People", peopleSchema);
+  const Attendance =
+    req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
+  const Stayed = req.db.models.Stayed || req.db.model("Stayed", StayedSchema);
+
+  const requestedDate =
+    req.query.date || new Date().toISOString().split("T")[0];
+  const nameId = req.params.id;
+
+  const person = await People.findById(nameId);
+  if (!person) {
+    return res.status(404).json({ message: "Person not found" });
+  }
+
+  const updateToStayed = await People.findByIdAndUpdate(nameId, {
+    staying: true,
+  });
+
+  const thatSession = await Session.findOne({ status: "Open" }).sort({
+    createdAt: -1,
+  });
+  if (!thatSession) {
+    return res.status(400).json({ message: "No open session" });
+  }
+
+  const alreadyExist = await Stayed.findOne({
+    name: nameId,
+    sessionId: thatSession._id,
+  });
+
+  if (alreadyExist) {
+    return res.status(400).json({ message: "Already exist" });
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const create = new Stayed({
+    sessionId: thatSession._id,
+    name: nameId,
+    status: "P",
+    markedBy: req.user.id,
+    date: today,
+    gender: person.gender,
+  });
+
+  await create.save();
+
+  return res
+    .status(200)
+    .json(
+      { message: `${person.name} stayed for next service` },
+      updateToStayed,
+    );
+};
+
+const undoStayed = async (req, res) => {
+  try {
+    const Session = req.db.model("Session", sessionSchema);
+    const People = req.db.model("People", peopleSchema);
+    const Attendance =
+      req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
+    const Stayed = req.db.models.Stayed || req.db.model("Stayed", StayedSchema);
+
+    const { id } = req.params;
+
+    // Find the currently open session
+    const theSession = await Session.findOne({ status: "Open" });
+    if (!theSession) {
+      return res.status(404).json({ message: "No opened session" });
+    }
+
+    // Find the stayed record
+    const stayedRecord = await Stayed.findOne({
+      sessionId: theSession._id,
+      name: id,
+    });
+
+    if (!stayedRecord) {
+      return res.status(404).json({ message: "Record not found" });
+    }
+
+    // Reset the person's staying flag
+    await People.findByIdAndUpdate(id, { staying: false });
+
+    // Delete the stayed record
+    await stayedRecord.deleteOne();
+
+    return res.status(200).json({
+      message: "Stayed record deleted",
+      personId: id,
+    });
+  } catch (error) {
+    console.error("Error undoing stayed:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   verif_staff_account,
   unblock_staff_account,
@@ -1518,4 +1644,7 @@ module.exports = {
   exportAttendanceHtml,
   findFrequentAbsentees,
   absenteesOrPresentPeople,
+  markthoseWhoStayed,
+  undoStayed,
+  thoseWhoStayed,
 };

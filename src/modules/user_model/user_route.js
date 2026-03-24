@@ -37,6 +37,9 @@ const {
   exportAttendanceHtml,
   findFrequentAbsentees,
   absenteesOrPresentPeople,
+  markthoseWhoStayed,
+  undoStayed,
+  thoseWhoStayed,
 } = require("./admin_user/controller");
 const {
   CheckroleonAll,
@@ -110,6 +113,18 @@ router.get(
   markAsPresent,
 );
 
+router.get(
+  "/mark-stayed/:id",
+  authmiddleware,
+  checkroleonAll,
+  markthoseWhoStayed,
+);
+router.get(
+  "/stayed-report/",
+  authmiddleware,
+  checkroleonAll,
+  thoseWhoStayed,
+);
 // to reverse the mark as present
 router.delete(
   "/mark-absent/:nameId/:sessionId/",
@@ -117,6 +132,8 @@ router.delete(
   checkroleonAll,
   markAsAbsent,
 );
+
+router.delete("/mark-stayed/:id", authmiddleware, checkroleonAll, undoStayed);
 
 //  to get all the pople in the database
 router.get("/get-all/", authmiddleware, checkroleonAll, getAllPersons);

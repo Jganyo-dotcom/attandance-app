@@ -11,6 +11,7 @@ const PeopleSchema = new mongoose.Schema(
     count: { type: Number, required: true, default: 1 },
     memberType: { type: Boolean, required: false, default: false },
     gender: { type: String, enum: ["M", "F", "N/A"], default: "N/A" },
+    staying: { type: Boolean, required: false, default: false },
   },
   { timestamps: true },
 );
