@@ -40,6 +40,7 @@ const {
   markthoseWhoStayed,
   undoStayed,
   thoseWhoStayed,
+  // cleanupTodayDuplicates,
 } = require("./admin_user/controller");
 const {
   CheckroleonAll,
@@ -113,18 +114,15 @@ router.get(
   markAsPresent,
 );
 
+// router.get("/run", authmiddleware, cleanupTodayDuplicates);
+
 router.get(
   "/mark-stayed/:id",
   authmiddleware,
   checkroleonAll,
   markthoseWhoStayed,
 );
-router.get(
-  "/stayed-report/",
-  authmiddleware,
-  checkroleonAll,
-  thoseWhoStayed,
-);
+router.get("/stayed-report/", authmiddleware, checkroleonAll, thoseWhoStayed);
 // to reverse the mark as present
 router.delete(
   "/mark-absent/:nameId/:sessionId/",

@@ -334,19 +334,20 @@ const closeSession = async (req, res) => {
       hour: "2-digit",
       minute: "2-digit",
     });
-    // if its already closed do nothing
+
+    // 1. Check if already closed
     const isClosed = await Session.findById(sessionId);
-    if (isClosed.status === "Closed") {
+    if (!isClosed || isClosed.status === "Closed") {
       return res.status(200).json({ message: "Session closed already" });
     }
 
-    // 1. Mark the session as closed
+    // 2. Mark session as closed
     const closedSession = await Session.findByIdAndUpdate(
       sessionId,
       {
         end: timeString,
         status: "Closed",
-        sessionDate: todayString,
+        date: new Date(todayString), // use Date type
       },
       { new: true },
     );
@@ -355,39 +356,29 @@ const closeSession = async (req, res) => {
       return res.status(404).json({ message: "Session not found" });
     }
 
+    // 3. Reset people statuses
+    await People.updateMany({ status: "P" }, { $set: { status: "A" } });
+    await People.updateMany({ staying: true }, { $set: { staying: false } });
+
+    // 4. Get absent people
     const absentPeople = await People.find({ status: "A" }).select(
       "_id gender",
     );
 
-    // 2. Reset all people who were marked Present back to Absent
-    await People.updateMany({ status: "P" }, { $set: { status: "A" } });
-    await People.updateMany({ staying: true }, { $set: { staying: false } });
-
-    // 3. Find all absent people
-
-    // 4. Find which absent people already have attendance records
-    const existingRecords = await Attendance.find({
-      sessionId,
-      status: "A",
-    }).select("name");
-    const existingIds = new Set(existingRecords.map((r) => r.name.toString()));
-
-    // 5. Filter out those already recorded
-    const newAbsent = absentPeople.filter(
-      (p) => !existingIds.has(p._id.toString()),
-    );
-
-    // 6. Bulk insert new absent records
-    if (newAbsent.length > 0) {
-      const docs = newAbsent.map((p) => ({
-        sessionId,
-        name: p._id,
-        status: "A",
-        gender: p.gender,
-        date: todayString,
-        markedBy: req.user.id,
-      }));
-      await Attendance.insertMany(docs);
+    // 5. Upsert attendance records (no duplicates possible)
+    for (const p of absentPeople) {
+      await Attendance.updateOne(
+        { name: p._id, date: todayString }, // unique key
+        {
+          $set: {
+            sessionId,
+            status: "A",
+            gender: p.gender,
+            markedBy: req.user.id,
+          },
+        },
+        { upsert: true },
+      );
     }
 
     return res.status(200).json({ message: "Session closed", closedSession });
@@ -396,6 +387,81 @@ const closeSession = async (req, res) => {
     return res.status(500).json({ message: "Something went wrong" });
   }
 };
+
+// Run this once to clean up today's duplicate "Absent" records
+// Reveal today's duplicate "Absent" records without deleting them
+// async function cleanupTodayDuplicates(req, res) {
+//   try {
+//     const Attendance = req.db.model("Attendance", attendanceSchema);
+//     const todayString = new Date().toISOString().split("T")[0];
+
+//     // Find all absent records for today
+//     const records = await Attendance.find({ date: todayString, status: "A" });
+
+//     // Group by person (name field)
+//     const grouped = {};
+//     records.forEach((rec) => {
+//       const key = rec.name.toString();
+//       if (!grouped[key]) grouped[key] = [];
+//       grouped[key].push(rec);
+//     });
+
+//     // Collect duplicates
+//     const duplicates = [];
+//     for (const key of Object.keys(grouped)) {
+//       if (grouped[key].length > 1) {
+//         duplicates.push({
+//           personId: key,
+//           count: grouped[key].length,
+//           records: grouped[key],
+//         });
+//       }
+//     }
+
+//     return res.status(200).json({
+//       message: "Today's duplicate absent records",
+//       duplicates,
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ message: "Error revealing duplicates" });
+//   }
+// }
+
+// async function cleanupTodayDuplicates(req, res) {
+//   try {
+//     const Attendance = req.db.model("Attendance", attendanceSchema);
+//     const todayString = new Date().toISOString().split("T")[0];
+
+//     // Find all records for today (any status)
+//     const records = await Attendance.find({ date: todayString });
+
+//     // Group by person
+//     const grouped = {};
+//     records.forEach((rec) => {
+//       const key = rec.name.toString();
+//       if (!grouped[key]) grouped[key] = [];
+//       grouped[key].push(rec);
+//     });
+
+//     // For each person, keep the earliest record and delete the rest
+//     for (const key of Object.keys(grouped)) {
+//       const duplicates = grouped[key];
+//       if (duplicates.length > 1) {
+//         // Sort by createdAt so we keep the first one
+//         duplicates.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+//         const [keep, ...remove] = duplicates;
+//         const removeIds = remove.map((r) => r._id);
+//         await Attendance.deleteMany({ _id: { $in: removeIds } });
+//       }
+//     }
+
+//     return res.status(200).json({ message: "Mixed duplicates cleaned up for today" });
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ message: "Error cleaning mixed duplicates" });
+//   }
+// }
 
 // Mark present
 const markAsPresent = async (req, res) => {
@@ -1647,4 +1713,5 @@ module.exports = {
   markthoseWhoStayed,
   undoStayed,
   thoseWhoStayed,
+  // cleanupTodayDuplicates,
 };

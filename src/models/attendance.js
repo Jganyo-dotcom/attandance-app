@@ -26,4 +26,7 @@ const RegisterSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// ✅ Compound unique index: one record per person per date
+RegisterSchema.index({ name: 1, date: 1 }, { unique: true });
+
 module.exports = RegisterSchema;
