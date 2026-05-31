@@ -346,7 +346,7 @@ const closeSession = async (req, res) => {
     const user = req.user.id;
 
     const isClosed = await Session.findById(sessionId);
-    if (isClosed.author.toString() === user.toString()) {
+    if (isClosed.author.toString() !== user.toString()) {
       return res.status(401).json({
         message: "You didnt open this session,if any problem contact creator",
       });
