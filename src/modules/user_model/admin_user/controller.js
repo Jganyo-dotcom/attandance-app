@@ -299,9 +299,16 @@ const createSession = async (req, res) => {
     }
 
     // Otherwise create a new session
+    const { title } = req.body;
+    if (!title || title.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Title is required to create a session" });
+    }
     const newSession = new Session({
       date: dateOnly,
       start: startTime,
+      title: title || "",
       end: "N/A",
       status: "Open",
       author: req.user.id,
@@ -336,12 +343,20 @@ const closeSession = async (req, res) => {
     });
 
     // 1. Check if already closed
+    const user = req.user.id;
+
     const isClosed = await Session.findById(sessionId);
+    if (isClosed.author.toString() === user.toString()) {
+      return res.status(401).json({
+        message: "You didnt open this session,if any problem contact creator",
+      });
+    }
     if (!isClosed || isClosed.status === "Closed") {
       return res.status(200).json({ message: "Session closed already" });
     }
 
     // 2. Mark session as closed
+    console.log(isClosed.author);
     const closedSession = await Session.findByIdAndUpdate(
       sessionId,
       {
@@ -356,16 +371,11 @@ const closeSession = async (req, res) => {
       return res.status(404).json({ message: "Session not found" });
     }
 
-    // 3. Reset people statuses
-    await People.updateMany({ status: "P" }, { $set: { status: "A" } });
-    await People.updateMany({ staying: true }, { $set: { staying: false } });
-
     // 4. Get absent people
     const absentPeople = await People.find({ status: "A" }).select(
       "_id gender",
     );
 
-    // 5. Upsert attendance records (no duplicates possible)
     for (const p of absentPeople) {
       await Attendance.updateOne(
         { name: p._id, date: todayString }, // unique key
@@ -380,6 +390,12 @@ const closeSession = async (req, res) => {
         { upsert: true },
       );
     }
+
+    // 3. Reset people statuses
+    await People.updateMany({ status: "P" }, { $set: { status: "A" } });
+    await People.updateMany({ staying: true }, { $set: { staying: false } });
+
+    // 5. Upsert attendance records (no duplicates possible)
 
     return res.status(200).json({ message: "Session closed", closedSession });
   } catch (err) {
@@ -1680,6 +1696,23 @@ const undoStayed = async (req, res) => {
   }
 };
 
+const checkSessions = async (req, res) => {
+  try {
+    const Session = req.db.model("Session", sessionSchema);
+    sessions = await Session.findOne({ status: "Open" });
+    if (!sessions) {
+      return res.status(200).json({ isOpened: false });
+    } else {
+      return res
+        .status(200)
+        .json({ isOpened: true, id: sessions._id, title: sessions.title });
+    }
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ error: "Its me, something went wrong" });
+  }
+};
+
 module.exports = {
   verif_staff_account,
   unblock_staff_account,
@@ -1713,5 +1746,6 @@ module.exports = {
   markthoseWhoStayed,
   undoStayed,
   thoseWhoStayed,
+  checkSessions,
   // cleanupTodayDuplicates,
 };

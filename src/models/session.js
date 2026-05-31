@@ -4,6 +4,7 @@ const SessionSchema = new mongoose.Schema(
   {
     date: { type: Date, required: true },
     start: { type: String, required: true },
+    title: { type: String, required: true, default: "NAMELESS" },
     end: { type: String, required: true, default: "N/A" },
     status: {
       type: String,

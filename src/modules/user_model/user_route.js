@@ -40,6 +40,7 @@ const {
   markthoseWhoStayed,
   undoStayed,
   thoseWhoStayed,
+  checkSessions,
   // cleanupTodayDuplicates,
 } = require("./admin_user/controller");
 const {
@@ -76,6 +77,14 @@ router.get(
   unblock_staff_account,
 );
 
+// route to unblock staff account
+router.get(
+  "/admin/check-session-status",
+  authmiddleware,
+  CheckroleonAll,
+  checkSessions,
+);
+
 // route to fetch staff disabled accounts
 router.get(
   "/admin/blocked/accounts",
@@ -96,7 +105,7 @@ router.get(
 );
 
 // route to create session for only admins
-router.get("/create-session/", authmiddleware, CheckroleonAll, createSession);
+router.post("/create-session/", authmiddleware, CheckroleonAll, createSession);
 
 // route to close session
 router.get(
