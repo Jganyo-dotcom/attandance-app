@@ -58,7 +58,6 @@ const unblock_staff_account = async (req, res) => {
 };
 // Controller: get pending accounts (improved)
 const pendingAccounts = async (req, res) => {
-  console.log("come");
   const User = connections.Main.model("User", UserSchema);
   try {
     // Query params for pagination and sorting
@@ -97,7 +96,6 @@ const pendingAccounts = async (req, res) => {
 };
 
 const getAllStaff = async (req, res) => {
-  console.log("come");
   const User = connections.Main.model("User", UserSchema);
   try {
     // Sorting params (optional)
@@ -329,6 +327,7 @@ const createSession = async (req, res) => {
 // Close session
 const closeSession = async (req, res) => {
   try {
+    const User = connections.Main.model("User", UserSchema);
     const Session = req.db.model("Session", sessionSchema);
     const People = req.db.model("People", peopleSchema);
     const Attendance = req.db.model("Attendance", attendanceSchema);
@@ -346,9 +345,10 @@ const closeSession = async (req, res) => {
     const user = req.user.id;
 
     const isClosed = await Session.findById(sessionId);
+    const author = await User.findById(isClosed.author);
     if (isClosed.author.toString() !== user.toString()) {
       return res.status(401).json({
-        message: "You didnt open this session,if any problem contact creator",
+        message: `${author.name} open this session,tell them to close it`,
       });
     }
     if (!isClosed || isClosed.status === "Closed") {
@@ -356,7 +356,6 @@ const closeSession = async (req, res) => {
     }
 
     // 2. Mark session as closed
-    console.log(isClosed.author);
     const closedSession = await Session.findByIdAndUpdate(
       sessionId,
       {
