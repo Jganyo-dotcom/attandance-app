@@ -363,7 +363,7 @@ const closeSession = async (req, res) => {
         status: "Closed",
         date: new Date(todayString), // use Date type
       },
-      { new: true },
+      { returnDocument: "after" },
     );
 
     if (!closedSession) {
@@ -717,7 +717,7 @@ const updatePerson = async (req, res) => {
     const updatedPerson = await People.findByIdAndUpdate(
       id,
       { $set: updateData },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
 
     return res.status(200).json({
@@ -766,7 +766,7 @@ const updateAdminAndStaff = async (req, res) => {
     const updatedPerson = await User.findByIdAndUpdate(
       objectId,
       { $set: req.body },
-      { new: true, runValidators: true }, // return updated doc, enforce schema validation
+      { returnDocument: "after", runValidators: true }, // return updated doc, enforce schema validation
     );
 
     if (!updatedPerson) {
