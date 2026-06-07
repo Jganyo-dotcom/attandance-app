@@ -239,49 +239,84 @@ const deleteAdmin = async (req, res) => {
   }
 };
 
+// Initialize Brevo client with the modern v4+ client architecture
 const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
 
 const passLink = async (req, res) => {
-  const User = connections.Main.model("User", UserSchema);
-  const { identifier } = req.body;
-
-  const user = await User.findOne({
-    $or: [{ email: identifier }, { username: identifier }],
-  });
-
-  // Always respond with generic message
-  if (!user) {
-    return res.json({
-      message: "If this account exists, a reset link will be sent.",
-    });
-  }
-
-  // Generate token
-  const token = crypto.randomBytes(32).toString("hex");
-  user.resetToken = token;
-  user.resetTokenExpiry = Date.now() + 3600000; // 1 hour
-  await user.save();
-
-  const resetLink = `https://elikemtech.netlify.app/reset-password.html?token=${token}`;
-
-  // Prepare Brevo email
-  const emailData = {
-    to: [{ email: user.email }],
-    sender: { email: "elikemjjames@gmail.com", name: "Eli Tech (Attendify" },
-    subject: "Password Reset",
-    htmlContent: `<p>Kindly click <a href="${resetLink}">here</a> to reset your password. 
-                  If you didn’t request this, kindly report to your admin.</p>`,
-  };
-
   try {
-    await brevo.sendTransacEmail(emailData);
+    const User = connections.Main.model("User", UserSchema);
+    const { identifier } = req.body;
+
+    const user = await User.findOne({
+      $or: [{ email: identifier }, { username: identifier }],
+    });
+
+    // Always respond with generic message to prevent user enumeration
+    if (!user) {
+      return res.json({
+        message: "If this account exists, a reset link will be sent.",
+      });
+    }
+
+    // Generate token
+    const token = crypto.randomBytes(32).toString("hex");
+    user.resetToken = token;
+    user.resetTokenExpiry = Date.now() + 3600000; // 1 hour
+    await user.save();
+
+    const resetLink = `https://elikemtech.netlify.app/reset-password.html?token=${token}`;
+
+    // Prepare Brevo email matching the modern SDK structure
+    const emailData = {
+      subject: "Password Reset - Attendify",
+      htmlContent: `
+        <html>
+          <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+            <p>Dear User,</p>
+            <p>We received a request to restore access to your <strong>Attendify</strong> account.</p>
+            <p>Kindly click the link below to safely reset your password:</p>
+            <p style="margin: 20px 0;">
+              <a href="${resetLink}" style="background-color: #2c3e50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                Reset Password
+              </a>
+            </p>
+            <p>This verification link will expire in <strong>1 hour</strong>.</p>
+            <p style="color: #7f8c8d; font-size: 0.9em;">If you didn’t request this change, you can safely ignore this email or report it to your system administrator.</p>
+            <br>
+            <p>Best regards,<br>
+            <strong>Attendify Support Team</strong></p>
+          </body>
+        </html>
+      `,
+      sender: {
+        name: "Ctrl Create Labs",
+        email: "elikemjjames@gmail.com",
+      },
+      to: [
+        {
+          email: user.email,
+          name: user.username || "User",
+        },
+      ],
+    };
+
+    // Correct invocation via the namespaced transactionalEmails instance
+    const response =
+      await brevo.transactionalEmails.sendTransacEmail(emailData);
+    console.log("Password reset email dispatched. ID:", response.messageId);
   } catch (err) {
-    console.error("Brevo error:", err.message);
+    // Graceful error logging so bad email attempts don't crash your server routing
+    console.error(
+      "Brevo implementation error:",
+      err.response?.body || err.message,
+    );
   }
 
-  res.json({ message: "If this account exists, a reset link will be sent." });
+  // Consistent fallback resolution message
+  return res.json({
+    message: "If this account exists, a reset link will be sent.",
+  });
 };
-
 // Reset password endpoint
 const resetPassword = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
