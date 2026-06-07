@@ -5,6 +5,7 @@ const UserSchema = require("../../models/user.model");
 const { connections } = require("../../config/db");
 const crypto = require("crypto");
 const { sendMail } = require("../../models/utils/email");
+const { BrevoClient } = require("@getbrevo/brevo");
 
 // Always bind User to the main connection
 
@@ -238,6 +239,8 @@ const deleteAdmin = async (req, res) => {
   }
 };
 
+const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
+
 const passLink = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
   const { identifier } = req.body;
@@ -246,6 +249,7 @@ const passLink = async (req, res) => {
     $or: [{ email: identifier }, { username: identifier }],
   });
 
+  // Always respond with generic message
   if (!user) {
     return res.json({
       message: "If this account exists, a reset link will be sent.",
@@ -259,11 +263,21 @@ const passLink = async (req, res) => {
   await user.save();
 
   const resetLink = `https://elikemtech.netlify.app/reset-password.html?token=${token}`;
-  await sendMail({
-    to: user.email,
+
+  // Prepare Brevo email
+  const emailData = {
+    to: [{ email: user.email }],
+    sender: { email: "no-reply@yourdomain.com", name: "Your App" },
     subject: "Password Reset",
-    html: `<p>Kindly Click <a href="${resetLink}">here</a> to reset your password.If you didnt request this kindly report to your admin</p>`,
-  });
+    htmlContent: `<p>Kindly click <a href="${resetLink}">here</a> to reset your password. 
+                  If you didn’t request this, kindly report to your admin.</p>`,
+  };
+
+  try {
+    await brevo.sendTransacEmail(emailData);
+  } catch (err) {
+    console.error("Brevo error:", err.message);
+  }
 
   res.json({ message: "If this account exists, a reset link will be sent." });
 };
