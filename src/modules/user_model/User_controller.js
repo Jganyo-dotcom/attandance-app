@@ -261,7 +261,7 @@ const passLink = async (req, res) => {
     // Generate token
     const token = crypto.randomBytes(32).toString("hex");
     user.resetToken = token;
-    user.resetTokenExpiry = Date.now() + 3600000; // 1 hour
+    user.resetTokenExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes
     await user.save();
 
     const resetLink = `https://elikemtech.netlify.app/reset-password.html?token=${token}`;
@@ -289,7 +289,7 @@ const passLink = async (req, res) => {
         </html>
       `,
       sender: {
-        name: "Ctrl Create Labs",
+        name: "Attendify Support Team",
         email: "elikemjjames@gmail.com",
       },
       to: [
