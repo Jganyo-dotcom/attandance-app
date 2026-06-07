@@ -267,7 +267,7 @@ const passLink = async (req, res) => {
   // Prepare Brevo email
   const emailData = {
     to: [{ email: user.email }],
-    sender: { email: "no-reply@yourdomain.com", name: "Your App" },
+    sender: { email: "elikemjjames@gmail.com", name: "Eli Tech (Attendify" },
     subject: "Password Reset",
     htmlContent: `<p>Kindly click <a href="${resetLink}">here</a> to reset your password. 
                   If you didn’t request this, kindly report to your admin.</p>`,
