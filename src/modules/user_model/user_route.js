@@ -197,7 +197,7 @@ router.get(
   "/admin/change-status/:id",
   authmiddleware,
   CheckroleonAll,
-  resetAdminPasswordStatus,
+  resetAdminPasswordStatus,// chnages
 );
 
 // get all the currents staff under the org
