@@ -1712,6 +1712,45 @@ const checkSessions = async (req, res) => {
   }
 };
 
+const resetAdminPasswordStatus = async (req, res) => {
+  try {
+    // Always use the main DB connection to initialize the User model
+    const User = connections.Main.model("User", UserSchema);
+    const adminId = req.params.id;
+
+    if (!adminId) {
+      return res.status(400).json({ error: "Admin ID is required in request parameters" });
+    }
+
+    // Find the admin by ID
+    const admin = await User.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({ error: "Admin not found" });
+    }
+
+    // Check if it's already false to prevent unnecessary database saves
+    if (admin.hasChangedPassword === false) {
+      return res.status(200).json({ 
+        message: "Admin's password change flag is already set to temporary mode." 
+      });
+    }
+
+    // Transform the flag back to false
+    admin.hasChangedPassword = false;
+    await admin.save();
+
+    return res.status(200).json({ 
+      message: `🔒 Security lock restored for ${admin.name}! Account status set back to temporary password restriction.` 
+    });
+
+  } catch (err) {
+    console.error("Error transforming password state metadata:", err);
+    return res
+      .status(500)
+      .json({ error: "Something went wrong resetting status", message: err.message });
+  }
+};
+
 module.exports = {
   verif_staff_account,
   unblock_staff_account,
@@ -1746,5 +1785,6 @@ module.exports = {
   undoStayed,
   thoseWhoStayed,
   checkSessions,
+  resetAdminPasswordStatus
   // cleanupTodayDuplicates,
 };

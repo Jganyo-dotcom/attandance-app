@@ -41,6 +41,7 @@ const {
   undoStayed,
   thoseWhoStayed,
   checkSessions,
+  resetAdminPasswordStatus
   // cleanupTodayDuplicates,
 } = require("./admin_user/controller");
 const {
@@ -189,6 +190,14 @@ router.post(
   authmiddleware,
   CheckroleonAll,
   AdminChangePassword,
+);
+
+// change password for both admin and staff
+router.get(
+  "/admin/change-status/:id",
+  authmiddleware,
+  CheckroleonAll,
+  resetAdminPasswordStatus,
 );
 
 // get all the currents staff under the org
