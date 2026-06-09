@@ -192,8 +192,8 @@ router.post(
   AdminChangePassword,
 );
 
-// change password for both admin and staff
-router.get(
+// change password stats for both admin and staff
+router.patch(
   "/admin/change-status/:id",
   authmiddleware,
   CheckroleonAll,
