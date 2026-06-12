@@ -1,5 +1,5 @@
 const peopleSchema = require("../models/People");
-const Org = require("../models/org");
+const OrgSchema = require("../models/org");
 const { connections } = require("../config/db");
 
 const guestgetAllPersons = async (req, res) => {
@@ -13,6 +13,7 @@ const guestgetAllPersons = async (req, res) => {
     }
 
     const People = orgConnection.model("People", peopleSchema);
+    const Org = orgConnection.model("Org", peopleSchema);
 
     // Step 2: Validate code against Org collection
     const orgDoc = await Org.findOne({
