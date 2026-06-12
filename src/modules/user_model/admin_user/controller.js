@@ -1864,6 +1864,73 @@ const generateQrCode= async (req, res) => {
 
 }
 
+const guestgetSubmittedPersons = async (req, res) => {
+  try {
+
+    const Org = req.db.model("People", peopleSchema);
+    const  org  = req.user.org;
+
+    // Step 1: Validate tenant organization connection
+    const orgConnection = connections[org];
+    if (!orgConnection) {
+      return res.status(400).json({ message: "Invalid organization" });
+    }
+
+    // Step 3: Build query restricted to org AND submitted records
+    let query = { org, submitted: true };
+
+    // Step 4: Add search filters if provided
+    const search = req.query.search ? req.query.search.trim() : "";
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { department: { $regex: search, $options: "i" } },
+        { contact: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Step 5: Pagination Math
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skipValue = (page - 1) * limit;
+
+    // Run aggregations and count metrics
+    const total = await People.countDocuments(query);
+    const totalPages = Math.ceil(total / limit) || 1; // Fallback to 1 if empty
+
+    const females = await People.countDocuments({ ...query, gender: "F" });
+    const males = await People.countDocuments({ ...query, gender: "M" });
+
+    // Fetch paginated staff documents
+    const staff = await People.find(query)
+      .skip(skipValue)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    // Step 6: Define Prev and Next logic parameters
+    const hasPrevPage = page > 1;
+    const hasNextPage = page < totalPages;
+
+    // Send complete response package
+    res.json({
+      message: "Submitted members retrieved successfully",
+      staff,
+      page,
+      totalPages,
+      total,
+      limit,
+      females,
+      males,
+      org,
+      hasPrevPage, // Frontend reads this to toggle Prev button state
+      hasNextPage  // Frontend reads this to toggle Next button state
+    });
+  } catch (err) {
+    console.error("Error fetching submitted records:", err);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
 
 
 
@@ -1909,5 +1976,6 @@ module.exports = {
   generateOrgCode,
   findOrgCode,
   generateQrCode,
+  guestgetSubmittedPersons
   // cleanupTodayDuplicates,
 }

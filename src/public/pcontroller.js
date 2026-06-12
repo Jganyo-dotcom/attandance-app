@@ -69,4 +69,61 @@ const guestgetAllPersons = async (req, res) => {
   }
 };
 
-module.exports = guestgetAllPersons;
+
+const guestMarkAsSubmitted = async (req, res) => {
+  try {
+    // Extract parameters from the URL route path
+    const { org, code, personId } = req.params;
+
+    // Step 1: Validate organization connection environment
+    const orgConnection = connections[org];
+    if (!orgConnection) {
+      return res.status(400).json({ message: "Invalid organization" });
+    }
+
+    // Initialize models using the active organization's specific database context
+    const People = orgConnection.model("People", peopleSchema);
+    const Org = orgConnection.model("Org", OrgSchema); // Fixed: Make sure to use OrgSchema here
+
+    // Step 2: Validate code security threshold and expiry window
+    const orgDoc = await Org.findOne({
+      name: org,
+      accessCode: code,
+      accessCodeExpiresAt: { $gt: new Date() },
+    });
+
+    if (!orgDoc) {
+      return res.status(403).json({ message: "Unauthorized: Your code is invalid" });
+    }
+
+    // Step 3: Find the person inside this organization and update their status
+    // Enforcing { org } inside the query safeguards against cross-tenant database updates
+    const updatedPerson = await People.findOneAndUpdate(
+      { _id: id, org: org },
+      { $set: { submitted: true } },
+      { returnDocument: "after" } // Returns the newly modified document instead of the old one
+    );
+
+    if (!updatedPerson) {
+      return res.status(404).json({ message: "Person not found in this organization" });
+    }
+
+    // Step 4: Return execution response context
+    res.json({
+      message: "Submitted for processing",
+      person: updatedPerson,
+    });
+
+  } catch (err) {
+    console.error("Error updating submission state:", err);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+// Export your functions accordingly
+module.exports = {
+  guestgetAllPersons,
+  guestMarkAsSubmitted
+};
+
+

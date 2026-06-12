@@ -44,7 +44,8 @@ const {
   resetAdminPasswordStatus,
   generateOrgCode,
   findOrgCode,
-  generateQrCode
+  generateQrCode,
+  guestgetSubmittedPersons
   // cleanupTodayDuplicates,
 } = require("./admin_user/controller");
 const {
@@ -87,6 +88,13 @@ router.post(
   authmiddleware,
   CheckroleonAll,
   generateQrCode,
+);
+
+router.get(
+  "/admin/get-pending-approval",
+  authmiddleware,
+  CheckroleonAll,
+  guestgetSubmittedPersons,
 );
 
 router.get(
