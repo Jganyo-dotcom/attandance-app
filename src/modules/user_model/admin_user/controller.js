@@ -1867,14 +1867,10 @@ const generateQrCode= async (req, res) => {
 const guestgetSubmittedPersons = async (req, res) => {
   try {
 
-    const Org = req.db.model("People", peopleSchema);
+    const People = req.db.model("People", peopleSchema);
     const  org  = req.user.org;
 
     // Step 1: Validate tenant organization connection
-    const orgConnection = connections[org];
-    if (!orgConnection) {
-      return res.status(400).json({ message: "Invalid organization" });
-    }
 
     // Step 3: Build query restricted to org AND submitted records
     let query = { org, submitted: true };
