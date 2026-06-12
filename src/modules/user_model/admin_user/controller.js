@@ -3,7 +3,7 @@ const peopleSchema = require("../../../models/People");
 const sessionSchema = require("../../../models/session");
 const UserSchema = require("../../../models/user.model");
 const { connections } = require("../../../config/db");
-const Org = require("../../../models/org"); // separate Org schema
+const OrgSchema = require("../../../models/org"); // separate Org schema
 const crypto = require("crypto");
 const {
   validationForCreateSchema,
@@ -1764,6 +1764,8 @@ const resetAdminPasswordStatus = async (req, res) => {
 
 const generateOrgCode = async (req, res) => {
   try {
+    const Session = req.db.model("Session", sessionSchema);
+    const Org = req.db.model("Org", OrgSchema);
     const org = req.user.org; // comes from admin token
 
     // Generate secure random 6-digit code
@@ -1774,7 +1776,7 @@ const generateOrgCode = async (req, res) => {
     const updatedOrg = await Org.findOneAndUpdate(
       { name: org },
       { accessCode: newCode, accessCodeExpiresAt: expiresAt },
-      { new: true, upsert: true },
+      { returnDocument: "after", upsert: true },
     );
 
     res.json({
@@ -1788,6 +1790,41 @@ const generateOrgCode = async (req, res) => {
     res.status(500).json({ message: "Something went wrong" });
   }
 };
+
+const findOrgCode = async (req, res) => {
+  try {
+    const Org = req.db.model("Org", OrgSchema);
+    const orgName = req.user.org; // comes from admin token
+
+    // Find the org record by name
+    const existingOrg = await Org.findOne({ name: orgName });
+
+    if (!existingOrg || !existingOrg.accessCode) {
+      return res.status(404).json({ 
+        message: "No access code found for this organization" 
+      });
+    }
+
+    // Check if code is expired
+    if (existingOrg.accessCodeExpiresAt && existingOrg.accessCodeExpiresAt < new Date()) {
+      return res.status(400).json({ 
+        message: "Access code has expired. Please generate a new one." 
+      });
+    }
+
+    res.json({
+      message: "Existing access code retrieved successfully",
+      org: existingOrg.name,
+      code: existingOrg.accessCode,
+      expiresAt: existingOrg.accessCodeExpiresAt,
+    });
+  } catch (err) {
+    console.error("Error finding org code:", err);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+
 
 
 
@@ -1827,5 +1864,6 @@ module.exports = {
   checkSessions,
   resetAdminPasswordStatus,
   generateOrgCode,
+  findOrgCode
   // cleanupTodayDuplicates,
 };

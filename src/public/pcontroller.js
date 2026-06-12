@@ -22,7 +22,7 @@ const guestgetAllPersons = async (req, res) => {
     });
 
     if (!orgDoc) {
-      return res.status(403).json({ message: "Unauthorized: invalid or expired code" });
+      return res.status(403).json({ message: "Unauthorized: Your code is invalid" });
     }
 
     // Step 3: Build query restricted to org
