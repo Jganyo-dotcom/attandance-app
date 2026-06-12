@@ -6,6 +6,7 @@ const path = require("path");
 const port = process.env.PORT || 3000;
 const cors = require("cors");
 const morgan = require("morgan");
+const guestRoutes = require("./src/public/pRoutes")
 //require("././src/models/utils/cron")
 
 // const { registerAdminfunction } = require("./src/config/admin.setup");
@@ -23,6 +24,7 @@ app.get("/a", (req, res) => {
 });
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/api", userRoute);
+app.use("/api/guest", guestRoutes)
 
 app.listen(port, "0.0.0.0", () => {
   console.log(` server listening on port ${port}`);

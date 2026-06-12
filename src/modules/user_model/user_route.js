@@ -41,7 +41,8 @@ const {
   undoStayed,
   thoseWhoStayed,
   checkSessions,
-  resetAdminPasswordStatus
+  resetAdminPasswordStatus,
+  generateOrgCode,
   // cleanupTodayDuplicates,
 } = require("./admin_user/controller");
 const {
@@ -50,15 +51,17 @@ const {
   OnlyManager,
 } = require("../../middlewares/role");
 const authmiddleware = require("../../middlewares/auth");
+const checkAccountStatus = require("../../middlewares/deletedAcounts");
 
 const router = express.Router();
 
 router.post("/guest/login", LoginUser);
-router.post("/guest/register", registerNewUser);
 router.post("/forget-password", passLink);
 router.post("/reset-password", resetPassword);
 
-//admin routes
+// router.use(checkAccountStatus);
+
+router.post("/guest/register", registerNewUser);
 
 router.delete("/admin/deleteAll", authmiddleware, CheckroleonAll, deleteall);
 
@@ -68,6 +71,13 @@ router.get(
   authmiddleware,
   CheckroleonAll,
   verif_staff_account,
+);
+
+router.get(
+  "/admin/generate-code",
+  authmiddleware,
+  CheckroleonAll,
+  generateOrgCode,
 );
 
 // route to unblock staff account
@@ -197,7 +207,7 @@ router.patch(
   "/admin/change-status/:id",
   authmiddleware,
   CheckroleonAll,
-  resetAdminPasswordStatus,// chnages
+  resetAdminPasswordStatus, // chnages
 );
 
 // get all the currents staff under the org

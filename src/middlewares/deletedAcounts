@@ -1,0 +1,9 @@
+const checkAccountStatus = (req, res, next) => {
+  if (req.user.isDeleted) {
+    return res.status(401).json({ message: "Account has been deleted" });
+  }
+
+  next();
+};
+
+module.exports = checkAccountStatus;

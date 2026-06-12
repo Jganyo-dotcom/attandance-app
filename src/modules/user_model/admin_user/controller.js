@@ -3,7 +3,8 @@ const peopleSchema = require("../../../models/People");
 const sessionSchema = require("../../../models/session");
 const UserSchema = require("../../../models/user.model");
 const { connections } = require("../../../config/db");
-
+const Org = require("../../../models/org"); // separate Org schema
+const crypto = require("crypto");
 const {
   validationForCreateSchema,
   validationForPasswordChange,
@@ -167,9 +168,13 @@ const getDisabledAccounts = async (req, res) => {
 const deleteAdmin = async (req, res) => {
   try {
     const User = connections.Main.model("User", UserSchema);
-    const userId = req.params.id; // assuming JWT middleware sets req.user
+    const userId = req.params.id;
 
-    const deletedUser = await User.findByIdAndDelete(userId);
+    const deletedUser = await User.findByIdAndUpdate(
+      userId,
+      { isDeleted: true },
+      { returnDocument: "after" },
+    );
 
     if (!deletedUser) {
       return res.status(404).json({ message: "User not found" });
@@ -624,7 +629,6 @@ const createPerson = async (req, res) => {
 };
 
 // Delete person by ID
-const mongoose = require("mongoose");
 
 const deletePerson = async (req, res) => {
   const People = req.db.models.People || req.db.model("People", peopleSchema);
@@ -1719,7 +1723,9 @@ const resetAdminPasswordStatus = async (req, res) => {
     const adminId = req.params.id;
 
     if (!adminId) {
-      return res.status(400).json({ error: "Admin ID is required in request parameters" });
+      return res
+        .status(400)
+        .json({ error: "Admin ID is required in request parameters" });
     }
 
     // Find the admin by ID
@@ -1730,8 +1736,9 @@ const resetAdminPasswordStatus = async (req, res) => {
 
     // Check if it's already false to prevent unnecessary database saves
     if (admin.hasChangedPassword === false) {
-      return res.status(200).json({ 
-        message: "Admin's password change flag is already set to temporary mode." 
+      return res.status(200).json({
+        message:
+          "Admin's password change flag is already set to temporary mode.",
       });
     }
 
@@ -1739,17 +1746,50 @@ const resetAdminPasswordStatus = async (req, res) => {
     admin.hasChangedPassword = false;
     await admin.save();
 
-    return res.status(200).json({ 
-      message: `🔒 Security lock restored for ${admin.name}! Account status set back to temporary password restriction.` 
+    return res.status(200).json({
+      message: `🔒 Security lock restored for ${admin.name}! Account status set back to temporary password restriction.`,
     });
-
   } catch (err) {
     console.error("Error transforming password state metadata:", err);
-    return res
-      .status(500)
-      .json({ error: "Something went wrong resetting status", message: err.message });
+    return res.status(500).json({
+      error: "Something went wrong resetting status",
+      message: err.message,
+    });
   }
 };
+
+// Admin route: generate new org code
+
+
+
+const generateOrgCode = async (req, res) => {
+  try {
+    const org = req.user.org; // comes from admin token
+
+    // Generate secure random 6-digit code
+    const newCode = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
+
+    // Update or create org record with new code + expiry
+    const updatedOrg = await Org.findOneAndUpdate(
+      { name: org },
+      { accessCode: newCode, accessCodeExpiresAt: expiresAt },
+      { new: true, upsert: true },
+    );
+
+    res.json({
+      message: "New access code generated successfully",
+      org: updatedOrg.name,
+      code: updatedOrg.accessCode,
+      expiresAt: updatedOrg.accessCodeExpiresAt,
+    });
+  } catch (err) {
+    console.error("Error generating org code:", err);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+
 
 module.exports = {
   verif_staff_account,
@@ -1785,6 +1825,7 @@ module.exports = {
   undoStayed,
   thoseWhoStayed,
   checkSessions,
-  resetAdminPasswordStatus
+  resetAdminPasswordStatus,
+  generateOrgCode,
   // cleanupTodayDuplicates,
 };

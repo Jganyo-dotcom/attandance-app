@@ -131,6 +131,10 @@ const LoginUser = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    if (tryingToLoginUser.isDeleted === true) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
     // Successful login: reset attempts
     tryingToLoginUser.login_attempt = 3;
     await tryingToLoginUser.save();
@@ -146,6 +150,7 @@ const LoginUser = async (req, res) => {
         disabled: tryingToLoginUser.disabled,
         verifiedByAdmin: tryingToLoginUser.verifiedByAdmin,
         org: tryingToLoginUser.org,
+        isDeleted: tryingToLoginUser.isDeleted,
       },
       process.env.JWT_SECRETE, // corrected env variable name
       { expiresIn: process.env.EXPIRES_IN },
@@ -174,7 +179,7 @@ const LoginUser = async (req, res) => {
 };
 const deleteall = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
-  const users = await User.deleteMany({});
+  //const users = await User.deleteMany({});
   return res.status(200).json({ message: "Deleted" });
 };
 
@@ -192,7 +197,7 @@ const adminSchema = Joi.object({
 const getAdmins = async (req, res) => {
   try {
     const User = connections.Main.model("User", UserSchema);
-    const admins = await User.find({ role: "Admin" });
+    const admins = await User.find({ role: "Admin", isDeleted: false });
     res.json(admins);
   } catch (err) {
     res.status(500).json({ error: "Server error" });
@@ -250,6 +255,10 @@ const passLink = async (req, res) => {
     const user = await User.findOne({
       $or: [{ email: identifier }, { username: identifier }],
     });
+
+    if (user.isDeleted === true) {
+      return res.status(404).json({ message: "Account not found" });
+    }
 
     // Always respond with generic message to prevent user enumeration
     if (!user) {
@@ -331,6 +340,10 @@ const resetPassword = async (req, res) => {
 
     if (!user) {
       return res.status(400).json({ message: "Invalid or expired token" });
+    }
+
+    if (user.isDeleted === true) {
+      return res.status(404).json({ message: "Account not found" });
     }
 
     // Hash the new password
