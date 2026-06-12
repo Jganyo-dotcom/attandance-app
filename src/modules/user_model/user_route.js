@@ -43,6 +43,7 @@ const {
   checkSessions,
   resetAdminPasswordStatus,
   generateOrgCode,
+  findOrgCode
   // cleanupTodayDuplicates,
 } = require("./admin_user/controller");
 const {
@@ -78,6 +79,13 @@ router.get(
   authmiddleware,
   CheckroleonAll,
   generateOrgCode,
+);
+
+router.get(
+  "/admin/get-existing-code",
+  authmiddleware,
+  CheckroleonAll,
+  findOrgCode,
 );
 
 // route to unblock staff account
