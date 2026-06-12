@@ -43,7 +43,8 @@ const {
   checkSessions,
   resetAdminPasswordStatus,
   generateOrgCode,
-  findOrgCode
+  findOrgCode,
+  generateQrCode
   // cleanupTodayDuplicates,
 } = require("./admin_user/controller");
 const {
@@ -79,6 +80,13 @@ router.get(
   authmiddleware,
   CheckroleonAll,
   generateOrgCode,
+);
+
+router.post(
+  "/admin/generate-qr",
+  authmiddleware,
+  CheckroleonAll,
+  generateQrCode,
 );
 
 router.get(

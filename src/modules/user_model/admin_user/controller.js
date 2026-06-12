@@ -4,6 +4,7 @@ const sessionSchema = require("../../../models/session");
 const UserSchema = require("../../../models/user.model");
 const { connections } = require("../../../config/db");
 const OrgSchema = require("../../../models/org"); // separate Org schema
+const QRCode = require('qrcode');
 const crypto = require("crypto");
 const {
   validationForCreateSchema,
@@ -1826,6 +1827,48 @@ const findOrgCode = async (req, res) => {
 
 
 
+// POST request matching frontend call structure
+const generateQrCode= async (req, res) => {
+  try {
+    // The exact destination link you specified
+    const finalDestinationUrl = "https://elikemtech.netlify.app/everyone/generate.html";
+
+    // Setup clear, highly scannable high-resolution QR layout configurations
+    const qrStyles = {
+      errorCorrectionLevel: 'H', // High resiliency layer ensures fast scanning
+      type: 'image/png',
+      margin: 1,
+      color: {
+        dark: '#0f172a',  // Modern deep slate blue ink
+        light: '#ffffff'  // Crisp white clean block backing
+      }
+    };
+
+    // Convert the Netlify string into a base64 Data URL asset block
+    const generatedBase64Image = await QRCode.toDataURL(finalDestinationUrl, qrStyles);
+
+    // Send the structured data directly back to the front-end view layer
+    return res.status(200).json({
+      success: true,
+      url: finalDestinationUrl,
+      qrImage: generatedBase64Image
+    });
+
+  } catch (err) {
+    console.error("Express QR Engine Failure:", err);
+    return res.status(500).json({ 
+      error: "Failed to generate public route mapping data.",
+      message: err.message 
+    });
+  }
+
+}
+
+
+
+
+
+
 
 
 module.exports = {
@@ -1864,6 +1907,7 @@ module.exports = {
   checkSessions,
   resetAdminPasswordStatus,
   generateOrgCode,
-  findOrgCode
+  findOrgCode,
+  generateQrCode,
   // cleanupTodayDuplicates,
-};
+}
