@@ -1831,7 +1831,7 @@ const findOrgCode = async (req, res) => {
 const generateQrCode= async (req, res) => {
   try {
     // The exact destination link you specified
-    const finalDestinationUrl = "https://elikemtech.netlify.app/everyone/generate.html";
+    const finalDestinationUrl = "https://elikemtech.netlify.app/everyone/public-attendance.html";
 
     // Setup clear, highly scannable high-resolution QR layout configurations
     const qrStyles = {
