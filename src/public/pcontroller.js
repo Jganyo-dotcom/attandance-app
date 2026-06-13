@@ -13,7 +13,7 @@ const guestgetAllPersons = async (req, res) => {
     }
 
     const People = orgConnection.model("People", peopleSchema);
-    const Org = orgConnection.model("Org", peopleSchema);
+    const Org = orgConnection.model("Org", OrgSchema);
 
     // Step 2: Validate code against Org collection
     const orgDoc = await Org.findOne({
@@ -23,15 +23,28 @@ const guestgetAllPersons = async (req, res) => {
     });
 
     if (!orgDoc) {
-      return res.status(403).json({ message: "Unauthorized: Your code is invalid" });
+      return res
+        .status(403)
+        .json({ message: "Unauthorized: Your code is invalid" });
     }
 
     // Step 3: Build query restricted to org
-    let query = { org };
+    // ==========================================================================
+    // Step 3: Build master base query filters (Using $ne handles uninitialized fields)
+    // ==========================================================================
+    let query = {
+      org: org,
+      status:"A",
+      submitted: { $ne: true },
+    };
 
-    // Step 4: Add search filter if provided
+    // ==========================================================================
+    // Step 4: Layer the search filter seamlessly if provided
+    // ==========================================================================
     const search = req.query.search ? req.query.search.trim() : "";
+
     if (search) {
+      // We attach the search clauses array safely onto the query object
       query.$or = [
         { name: { $regex: search, $options: "i" } },
         { department: { $regex: search, $options: "i" } },
@@ -69,7 +82,6 @@ const guestgetAllPersons = async (req, res) => {
   }
 };
 
-
 const guestMarkAsSubmitted = async (req, res) => {
   try {
     // Extract parameters from the URL route path
@@ -93,19 +105,23 @@ const guestMarkAsSubmitted = async (req, res) => {
     });
 
     if (!orgDoc) {
-      return res.status(403).json({ message: "Unauthorized: Your code is invalid" });
+      return res
+        .status(403)
+        .json({ message: "Unauthorized: Your code is invalid" });
     }
 
     // Step 3: Find the person inside this organization and update their status
     // Enforcing { org } inside the query safeguards against cross-tenant database updates
     const updatedPerson = await People.findOneAndUpdate(
-      { _id: id, org: org },
+      { _id: personId, org: org },
       { $set: { submitted: true } },
-      { returnDocument: "after" } // Returns the newly modified document instead of the old one
+      { returnDocument: "after" }, // Returns the newly modified document instead of the old one
     );
 
     if (!updatedPerson) {
-      return res.status(404).json({ message: "Person not found in this organization" });
+      return res
+        .status(404)
+        .json({ message: "Person not found in this organization" });
     }
 
     // Step 4: Return execution response context
@@ -113,7 +129,6 @@ const guestMarkAsSubmitted = async (req, res) => {
       message: "Submitted for processing",
       person: updatedPerson,
     });
-
   } catch (err) {
     console.error("Error updating submission state:", err);
     res.status(500).json({ message: "Something went wrong" });
@@ -123,7 +138,5 @@ const guestMarkAsSubmitted = async (req, res) => {
 // Export your functions accordingly
 module.exports = {
   guestgetAllPersons,
-  guestMarkAsSubmitted
+  guestMarkAsSubmitted,
 };
-
-

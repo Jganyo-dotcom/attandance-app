@@ -45,7 +45,8 @@ const {
   generateOrgCode,
   findOrgCode,
   generateQrCode,
-  guestgetSubmittedPersons
+  AdminGetSubmittedPersons,
+  adminDismiss,
   // cleanupTodayDuplicates,
 } = require("./admin_user/controller");
 const {
@@ -94,8 +95,10 @@ router.get(
   "/admin/get-pending-approval",
   authmiddleware,
   CheckroleonAll,
-  guestgetSubmittedPersons,
+  AdminGetSubmittedPersons,
 );
+
+router.get("/admin/dismiss/:id", authmiddleware, CheckroleonAll, adminDismiss);
 
 router.get(
   "/admin/get-existing-code",

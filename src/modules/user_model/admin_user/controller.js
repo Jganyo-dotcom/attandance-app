@@ -4,7 +4,7 @@ const sessionSchema = require("../../../models/session");
 const UserSchema = require("../../../models/user.model");
 const { connections } = require("../../../config/db");
 const OrgSchema = require("../../../models/org"); // separate Org schema
-const QRCode = require('qrcode');
+const QRCode = require("qrcode");
 const crypto = require("crypto");
 const {
   validationForCreateSchema,
@@ -352,9 +352,10 @@ const closeSession = async (req, res) => {
 
     const isClosed = await Session.findById(sessionId);
     const author = await User.findById(isClosed.author);
-    if (isClosed.author.toString() !== user.toString()) {
+    if (isClosed.author.toString() === user.toString()) {
+      console.log("here");
       return res.status(401).json({
-        message: `${author.name} open this session,tell them to close it`,
+        message: `${author?.name ?? "someone"} opened this session, tell them to close it`,
       });
     }
     if (!isClosed || isClosed.status === "Closed") {
@@ -1761,8 +1762,6 @@ const resetAdminPasswordStatus = async (req, res) => {
 
 // Admin route: generate new org code
 
-
-
 const generateOrgCode = async (req, res) => {
   try {
     const Session = req.db.model("Session", sessionSchema);
@@ -1801,15 +1800,18 @@ const findOrgCode = async (req, res) => {
     const existingOrg = await Org.findOne({ name: orgName });
 
     if (!existingOrg || !existingOrg.accessCode) {
-      return res.status(404).json({ 
-        message: "No access code found for this organization" 
+      return res.status(404).json({
+        message: "No access code found for this organization",
       });
     }
 
     // Check if code is expired
-    if (existingOrg.accessCodeExpiresAt && existingOrg.accessCodeExpiresAt < new Date()) {
-      return res.status(400).json({ 
-        message: "Access code has expired. Please generate a new one." 
+    if (
+      existingOrg.accessCodeExpiresAt &&
+      existingOrg.accessCodeExpiresAt < new Date()
+    ) {
+      return res.status(400).json({
+        message: "Access code has expired. Please generate a new one.",
       });
     }
 
@@ -1825,63 +1827,72 @@ const findOrgCode = async (req, res) => {
   }
 };
 
-
-
 // POST request matching frontend call structure
-const generateQrCode= async (req, res) => {
+const generateQrCode = async (req, res) => {
   try {
     // The exact destination link you specified
-    const finalDestinationUrl = "https://elikemtech.netlify.app/everyone/public-attendance.html";
+    const finalDestinationUrl =
+      "https://elikemtech.netlify.app/everyone/public-attendance.html";
 
     // Setup clear, highly scannable high-resolution QR layout configurations
     const qrStyles = {
-      errorCorrectionLevel: 'H', // High resiliency layer ensures fast scanning
-      type: 'image/png',
+      errorCorrectionLevel: "H", // High resiliency layer ensures fast scanning
+      type: "image/png",
       margin: 1,
       color: {
-        dark: '#0f172a',  // Modern deep slate blue ink
-        light: '#ffffff'  // Crisp white clean block backing
-      }
+        dark: "#0f172a", // Modern deep slate blue ink
+        light: "#ffffff", // Crisp white clean block backing
+      },
     };
 
     // Convert the Netlify string into a base64 Data URL asset block
-    const generatedBase64Image = await QRCode.toDataURL(finalDestinationUrl, qrStyles);
+    const generatedBase64Image = await QRCode.toDataURL(
+      finalDestinationUrl,
+      qrStyles,
+    );
 
     // Send the structured data directly back to the front-end view layer
     return res.status(200).json({
       success: true,
       url: finalDestinationUrl,
-      qrImage: generatedBase64Image
+      qrImage: generatedBase64Image,
     });
-
   } catch (err) {
     console.error("Express QR Engine Failure:", err);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: "Failed to generate public route mapping data.",
-      message: err.message 
+      message: err.message,
     });
   }
+};
 
-}
-
-const guestgetSubmittedPersons = async (req, res) => {
+const AdminGetSubmittedPersons = async (req, res) => {
   try {
-
     const People = req.db.model("People", peopleSchema);
-    const  org  = req.user.org;
+    const org = req.user.org;
 
     // Step 1: Validate tenant organization connection
 
     // Step 3: Build query restricted to org AND submitted records
-    let query = { org, submitted: true };
+    // Step 3: Build strict base constraints
+    // (Using explicit true makes sure you only pull submitted records)
+    let query = {
+      org: org,
+      submitted: true,
+      status: { $ne: "P" },
+    };
 
-    // Step 4: Add search filters if provided
+    // Step 4: Add search filters cleanly inside an $and block if text exists
     const search = req.query.search ? req.query.search.trim() : "";
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { department: { $regex: search, $options: "i" } },
-        { contact: { $regex: search, $options: "i" } },
+      query.$and = [
+        {
+          $or: [
+            { name: { $regex: search, $options: "i" } },
+            { department: { $regex: search, $options: "i" } },
+            { contact: { $regex: search, $options: "i" } },
+          ],
+        },
       ];
     }
 
@@ -1907,6 +1918,7 @@ const guestgetSubmittedPersons = async (req, res) => {
     const hasPrevPage = page > 1;
     const hasNextPage = page < totalPages;
 
+
     // Send complete response package
     res.json({
       message: "Submitted members retrieved successfully",
@@ -1919,7 +1931,7 @@ const guestgetSubmittedPersons = async (req, res) => {
       males,
       org,
       hasPrevPage, // Frontend reads this to toggle Prev button state
-      hasNextPage  // Frontend reads this to toggle Next button state
+      hasNextPage, // Frontend reads this to toggle Next button state
     });
   } catch (err) {
     console.error("Error fetching submitted records:", err);
@@ -1927,12 +1939,28 @@ const guestgetSubmittedPersons = async (req, res) => {
   }
 };
 
+const adminDismiss = async (req, res) => {
+  try {
+    const People = req.db.model("People", peopleSchema);
+    const org = req.user.org;
+    const id = req.params.id;
+    const person = await People.findByIdAndUpdate(
+      id,
+      { submitted: false },
+      { returnDocument: "after" },
+    );
+    if (!person || person.length === 0) {
+      return res.status(204).json({ message: "Person not found" });
+    }
 
-
-
-
-
-
+    return res.status(200).json({ message: "Cancelled during processing" });
+  } catch (err) {
+    console.log(err);
+    return res
+      .status(500)
+      .json({ message: "ITs not you its me, something went wrong" });
+  }
+};
 
 module.exports = {
   verif_staff_account,
@@ -1972,6 +2000,7 @@ module.exports = {
   generateOrgCode,
   findOrgCode,
   generateQrCode,
-  guestgetSubmittedPersons
+  AdminGetSubmittedPersons,
+  adminDismiss,
   // cleanupTodayDuplicates,
-}
+};
