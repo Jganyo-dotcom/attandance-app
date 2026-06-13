@@ -3,6 +3,7 @@ const peopleSchema = require("../../../models/People");
 const sessionSchema = require("../../../models/session");
 const UserSchema = require("../../../models/user.model");
 const { connections } = require("../../../config/db");
+const mongoose = require("mongoose");
 const OrgSchema = require("../../../models/org"); // separate Org schema
 const QRCode = require("qrcode");
 const crypto = require("crypto");
@@ -352,7 +353,7 @@ const closeSession = async (req, res) => {
 
     const isClosed = await Session.findById(sessionId);
     const author = await User.findById(isClosed.author);
-    if (isClosed.author.toString() === user.toString()) {
+    if (isClosed.author.toString() !== user.toString()) {
       console.log("here");
       return res.status(401).json({
         message: `${author?.name ?? "someone"} opened this session, tell them to close it`,
@@ -633,9 +634,9 @@ const createPerson = async (req, res) => {
 // Delete person by ID
 
 const deletePerson = async (req, res) => {
-  const People = req.db.models.People || req.db.model("People", peopleSchema);
+  const People = req.db.model("People", peopleSchema);
   const id = req.params.id;
-
+  console.log("here");
   try {
     // Convert to ObjectId explicitly (optional but safer)
     const objectId = new mongoose.Types.ObjectId(id);
@@ -1917,7 +1918,6 @@ const AdminGetSubmittedPersons = async (req, res) => {
     // Step 6: Define Prev and Next logic parameters
     const hasPrevPage = page > 1;
     const hasNextPage = page < totalPages;
-
 
     // Send complete response package
     res.json({
