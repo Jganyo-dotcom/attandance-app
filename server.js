@@ -19,6 +19,7 @@ app.use(express.json());
 connectDatabases();
 // registerAdminfunction()
 
+
 app.get("/a", (req, res) => {
   res.send("Hello World!");
 });

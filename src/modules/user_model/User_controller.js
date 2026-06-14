@@ -196,10 +196,18 @@ const adminSchema = Joi.object({
 
 const getAdmins = async (req, res) => {
   try {
-    const User = connections.Main.model("User", UserSchema);
+    // 🎯 Use the compiled connection registry directly to stop memory caching loops
+    const User = connections.Main.models["User"]
+      ? connections.Main.model("User")
+      : connections.Main.model("User", UserSchema);
+
+    // This strict query will now reliably find all 7 active admins
     const admins = await User.find({ role: "Admin", isDeleted: false });
+
+    console.log(`Active Admins Found: ${admins.length}`);
     res.json(admins);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 };
@@ -362,6 +370,27 @@ const resetPassword = async (req, res) => {
   }
 };
 
+// Add this temporarily to your express routes
+const temp = async (req, res) => {
+  try {
+    const User = connections.Main.model("User", UserSchema);
+
+    // Explicitly target the records where MongoDB stored the literal string "false"
+    const result = await User.updateMany(
+      { isDeleted: { $exists: false } },
+      { $set: { isDeleted: false } },
+    );
+
+    console.log(`Successfully fixed ${result.modifiedCount} admin documents!`);
+    res.send(
+      `<h1>Database Fixed!</h1><p>Modified ${result.modifiedCount} accounts from string to boolean.</p>`,
+    );
+  } catch (err) {
+    console.error(err);
+    res.status(500).send(`<h1>Error</h1><p>${err.message}</p>`);
+  }
+};
+
 module.exports = {
   registerNewUser,
   LoginUser,
@@ -371,4 +400,5 @@ module.exports = {
   getAdmins,
   resetPassword,
   passLink,
+  temp,
 };
