@@ -7,7 +7,7 @@ const {
   getAdmins,
   passLink,
   resetPassword,
-  temp
+  temp,
 } = require("./User_controller");
 const {
   verif_staff_account,
@@ -57,6 +57,7 @@ const {
 } = require("../../middlewares/role");
 const authmiddleware = require("../../middlewares/auth");
 const checkAccountStatus = require("../../middlewares/deletedAcounts");
+
 
 const router = express.Router();
 

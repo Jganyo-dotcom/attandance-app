@@ -739,15 +739,21 @@ const updatePerson = async (req, res) => {
   }
 };
 
+// Configure your Cloudinary keys (Make sure these are in your .env file!)
+
+
 const updateAdminAndStaff = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
   const id = req.params.id;
 
   try {
+    // 1. Validate the incoming text body data (Joi validation)
     const { error, value } = adminUpdate.validate(req.body);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
     }
+
+    // 2. Check for duplicate Email
     const existingEmail = await User.findOne({
       email: value.email,
       _id: { $ne: id },
@@ -757,6 +763,8 @@ const updateAdminAndStaff = async (req, res) => {
         .status(400)
         .json({ message: "Email already exist in database" });
     }
+
+    // 3. Check for duplicate Username
     const existingUserName = await User.findOne({
       username: value.username,
       _id: { $ne: id },
@@ -766,20 +774,24 @@ const updateAdminAndStaff = async (req, res) => {
         .status(400)
         .json({ message: "Username already exist in database" });
     }
-    // Convert to ObjectId explicitly
+
+    // Convert string ID to explicit ObjectId
     const objectId = new mongoose.Types.ObjectId(id);
 
-    // Apply only the fields provided in req.body
+    // 4. Directly update MongoDB with the payload.
+    // Since req.body contains the final Cloudinary image string link at 'avatarUrl',
+    // Mongoose handles saving it perfectly without any extra middleware.
     const updatedPerson = await User.findByIdAndUpdate(
       objectId,
       { $set: req.body },
-      { returnDocument: "after", runValidators: true }, // return updated doc, enforce schema validation
+      { returnDocument: "after", runValidators: true }, // returns updated doc, enforces schema validation
     );
 
     if (!updatedPerson) {
       return res.status(404).json({ message: "Profile update not found" });
     }
 
+    // 5. Send back the clean updated person document to the frontend
     return res.status(200).json({
       message: `${updatedPerson.name} updated successfully`,
       updatedPerson,

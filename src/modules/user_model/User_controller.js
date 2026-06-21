@@ -165,6 +165,7 @@ const LoginUser = async (req, res) => {
       role: tryingToLoginUser.role,
       hasChangedPassword: tryingToLoginUser.hasChangedPassword,
       org: tryingToLoginUser.org,
+      avatarUrl:tryingToLoginUser.avatarUrl
     };
 
     return res.status(200).json({

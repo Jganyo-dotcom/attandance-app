@@ -46,6 +46,7 @@ const adminUpdate = Joi.object({
   name: Joi.string().min(5).required(),
   email: Joi.string().email().required(),
   username: Joi.string().min(3).required(),
+  avatarUrl: Joi.string().optional()
 });
 
 module.exports = {
