@@ -8,6 +8,7 @@ const {
   passLink,
   resetPassword,
   temp,
+  VerifyToken,
 } = require("./User_controller");
 const {
   verif_staff_account,
@@ -58,11 +59,11 @@ const {
 const authmiddleware = require("../../middlewares/auth");
 const checkAccountStatus = require("../../middlewares/deletedAcounts");
 
-
 const router = express.Router();
 
 router.post("/guest/login", LoginUser);
 router.post("/forget-password", passLink);
+router.post("/verify-token", VerifyToken);
 router.post("/reset-password", resetPassword);
 router.get("/fix-my-db-booleans", temp);
 

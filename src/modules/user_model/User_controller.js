@@ -7,6 +7,7 @@ const crypto = require("crypto");
 const { sendMail } = require("../../models/utils/email");
 const { BrevoClient } = require("@getbrevo/brevo");
 
+
 // Always bind User to the main connection
 
 // Now you can safely use User everywhere
@@ -165,7 +166,7 @@ const LoginUser = async (req, res) => {
       role: tryingToLoginUser.role,
       hasChangedPassword: tryingToLoginUser.hasChangedPassword,
       org: tryingToLoginUser.org,
-      avatarUrl:tryingToLoginUser.avatarUrl
+      avatarUrl: tryingToLoginUser.avatarUrl,
     };
 
     return res.status(200).json({
@@ -178,6 +179,50 @@ const LoginUser = async (req, res) => {
     res.status(500).json({ message: "Something went wrong while logging in" });
   }
 };
+
+const VerifyToken = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRETE);
+
+    const User = connections.Main.model("User", UserSchema);
+    const user = await User.findById(decoded.id);
+
+    if (!user || user.isDeleted) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    if (user.disabled && !["Admin", "Manager", "Staff"].includes(user.role)) {
+      return res.status(403).json({ message: "Your account was blocked" });
+    }
+
+    if (!user.verifiedByAdmin) {
+      return res
+        .status(403)
+        .json({ message: "Your account has not yet been verified" });
+    }
+
+    return res.status(200).json({
+      message: "Token valid",
+      safe_user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        username: user.username,
+        org: user.org,
+      },
+    });
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+};
+
 const deleteall = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
   //const users = await User.deleteMany({});
@@ -402,4 +447,5 @@ module.exports = {
   resetPassword,
   passLink,
   temp,
+  VerifyToken,
 };
