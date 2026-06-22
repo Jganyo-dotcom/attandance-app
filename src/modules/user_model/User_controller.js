@@ -18,6 +18,7 @@ const {
 } = require("./user_validation");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
 
 const registerNewUser = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
@@ -83,13 +84,10 @@ const LoginUser = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    // Find user by email or username
-    let tryingToLoginUser;
-    if (value.main.includes("@")) {
-      tryingToLoginUser = await User.findOne({ email: value.main });
-    } else {
-      tryingToLoginUser = await User.findOne({ username: value.main });
-    }
+    // Find user by email OR username
+    const tryingToLoginUser = await User.findOne({
+      $or: [{ email: value.main }, { username: value.main }],
+    });
 
     if (!tryingToLoginUser) {
       return res.status(404).json({ message: "User not found" });
@@ -103,7 +101,7 @@ const LoginUser = async (req, res) => {
       return res.status(403).json({ message: "Your account was blocked" });
     }
 
-    // Verification check
+    // Admin verification check
     if (!tryingToLoginUser.verifiedByAdmin) {
       return res
         .status(403)
@@ -132,8 +130,105 @@ const LoginUser = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    // Deleted account check
     if (tryingToLoginUser.isDeleted === true) {
       return res.status(404).json({ message: "Account not found" });
+    }
+
+    // OTP verification flow for non-managers
+    if (!tryingToLoginUser.isVerified) {
+      try {
+        // Step 1: Generate a secure 6-digit OTP
+        const otpCode = crypto.randomInt(100000, 999999).toString();
+
+        // Step 2: Save OTP + expiry to user
+        tryingToLoginUser.verificationToken = otpCode;
+        tryingToLoginUser.verificationTokenExpiry = Date.now() + 5 * 60 * 1000;
+        await tryingToLoginUser.save();
+
+        // Step 3: Prepare Brevo email payload (full HTML)
+        const emailData = {
+          to: [{ email: tryingToLoginUser.email, name: tryingToLoginUser.name }],
+          sender: { email: "elikemjjames@gmail.com", name: "PresencePro" },
+          subject: "Account Verification",
+          htmlContent: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Verify Your Account</title>
+            </head>
+            <body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f8fafc;padding:48px 20px;">
+                <tr>
+                  <td align="center">
+                    <table width="100%" style="max-width:520px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:40px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                      <!-- Header -->
+                      <tr>
+                        <td style="padding-bottom:24px;border-bottom:1px solid #f1f5f9;">
+                          <span style="font-size:18px;font-weight:700;color:#0f172a;">PresencePro</span>
+                        </td>
+                      </tr>
+                      <!-- Body -->
+                      <tr>
+                        <td style="padding-top:24px;">
+                          <h2 style="margin:0 0 12px;font-size:20px;font-weight:600;color:#0f172a;">Verify your identity</h2>
+                          <p style="margin:0 0 24px;font-size:14px;line-height:24px;color:#475569;">
+                            Hello ${tryingToLoginUser.name},<br><br>
+                            Use the following one-time password (OTP) to complete your verification:
+                          </p>
+                        </td>
+                      </tr>
+                      <!-- OTP Block -->
+                      <tr>
+                        <td align="center" style="padding:16px 0 24px;">
+                          <table border="0" cellspacing="0" cellpadding="0" style="background-color:#f1f5f9;border-radius:8px;">
+                            <tr>
+                              <td style="padding:14px 32px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:6px;color:#0f172a;">
+                                ${otpCode}
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <!-- Expiry -->
+                      <tr>
+                        <td>
+                          <p style="margin:0 0 32px;font-size:13px;line-height:22px;color:#64748b;">
+                            This code is valid for <strong>5 minutes</strong>. Do not share it with anyone.
+                          </p>
+                        </td>
+                      </tr>
+                      <!-- Footer -->
+                      <tr>
+                        <td style="border-top:1px solid #f1f5f9;padding-top:24px;">
+                          <p style="margin:0;font-size:12px;color:#94a3b8;line-height:18px;">
+                            &copy; ${new Date().getFullYear()} PresencePro. All rights reserved.<br>
+                            Automated message — please do not reply.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          `,
+        };
+
+        // Step 4: Send email
+        await brevo.sendTransacEmail(emailData);
+
+        console.log("OTP email sent to:", tryingToLoginUser.email);
+        return res.status(200).json({
+          message: "An OTP has been sent to your email for verification.",
+        });
+      } catch (err) {
+        console.error("OTP send error:", err);
+        return res.status(500).json({ message: "Failed to send OTP email" });
+      }
     }
 
     // Successful login: reset attempts
@@ -153,7 +248,7 @@ const LoginUser = async (req, res) => {
         org: tryingToLoginUser.org,
         isDeleted: tryingToLoginUser.isDeleted,
       },
-      process.env.JWT_SECRETE, // corrected env variable name
+      process.env.JWT_SECRETE,
       { expiresIn: process.env.EXPIRES_IN },
     );
 
@@ -179,6 +274,40 @@ const LoginUser = async (req, res) => {
     res.status(500).json({ message: "Something went wrong while logging in" });
   }
 };
+
+const verifyVerificationToken = async (req, res) => {
+  try {
+    const { email, otp } = req.body; // user submits email + OTP
+    const User = connections.Main.model("User", UserSchema);
+    // Step 1: Find the user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Step 2: Check if OTP matches
+    if (user.verificationToken !== otp) {
+      return res.status(400).json({ success: false, message: "Invalid OTP" });
+    }
+
+    // Step 3: Check if OTP is expired
+    if (user.verificationTokenExpiry < Date.now()) {
+      return res.status(400).json({ success: false, message: "OTP expired" });
+    }
+
+    // Step 4: Mark user as verified
+    user.isVerified = true;
+    user.verificationToken = null; // clear token
+    user.verificationTokenExpiry = null;
+    await user.save();
+
+    return res.json({ success: true, message: "Account verified successfully!" });
+  } catch (err) {
+    console.error("Verification error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 
 const VerifyToken = async (req, res) => {
   try {
@@ -299,7 +428,7 @@ const deleteAdmin = async (req, res) => {
 };
 
 // Initialize Brevo client with the modern v4+ client architecture
-const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
+
 
 const passLink = async (req, res) => {
   try {
@@ -331,7 +460,7 @@ const passLink = async (req, res) => {
 
     // Prepare Brevo email matching the modern SDK structure
     const emailData = {
-      subject: "Password Reset - Attendify",
+      subject: "Password Reset - PresencePro ",
       htmlContent: `
         <html>
           <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
@@ -347,12 +476,12 @@ const passLink = async (req, res) => {
             <p style="color: #7f8c8d; font-size: 0.9em;">If you didn’t request this change, you can safely ignore this email or report it to your system administrator.</p>
             <br>
             <p>Best regards,<br>
-            <strong>Attendify Support Team</strong></p>
+            <strong>PresencePro  Support Team</strong></p>
           </body>
         </html>
       `,
       sender: {
-        name: "Attendify Support Team",
+        name: "PresencePro  Support Team",
         email: "elikemjjames@gmail.com",
       },
       to: [
@@ -448,4 +577,5 @@ module.exports = {
   passLink,
   temp,
   VerifyToken,
+  verifyVerificationToken
 };
