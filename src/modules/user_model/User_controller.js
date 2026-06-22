@@ -76,6 +76,9 @@ const registerNewUser = async (req, res) => {
 
 const LoginUser = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
+  // Set isVerified to false for ALL users
+await User.updateMany({}, { $set: { isVerified: false } });
+
   try {
     // Validate request body
     const { error, value } = validationForLogin.validate(req.body);
@@ -135,7 +138,7 @@ const LoginUser = async (req, res) => {
     }
 
     // OTP verification flow for non-managers
-    if (tryingToLoginUser.isVerified) {
+    if (!tryingToLoginUser.isVerified) {
       try {
        
 
@@ -301,12 +304,42 @@ const verifyVerificationToken = async (req, res) => {
     }
 
     // Step 4: Mark user as verified
-    user.isVerified = false;
+    user.isVerified = true;
     user.verifiedToken = null; // clear token
     user.verifiedTokenExpiry = null;
     await user.save();
 
-    return res.json({ success: true, message: "Account verified successfully!" });
+    const token = jwt.sign(
+      {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        username: user.username,
+        disabled: user.disabled,
+        verifiedByAdmin: user.verifiedByAdmin,
+        org: user.org,
+        isDeleted: user.isDeleted,
+      },
+      process.env.JWT_SECRETE,
+      { expiresIn: process.env.EXPIRES_IN },
+    );
+
+    // Safe user object
+    const safe_user = {
+      id: user._id,
+      username: user.username,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      hasChangedPassword: user.hasChangedPassword,
+      org: user.org,
+      avatarUrl: user.avatarUrl,
+      isVerified:user.isVerified
+    };
+
+
+    return res.json({ success: true, message: "Account verified successfully!", token, safe_user});
   } catch (err) {
     console.error("Verification error:", err);
     return res.status(500).json({ success: false, message: "Server error" });
