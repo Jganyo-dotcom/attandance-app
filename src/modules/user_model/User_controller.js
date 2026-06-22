@@ -262,6 +262,7 @@ const LoginUser = async (req, res) => {
       hasChangedPassword: tryingToLoginUser.hasChangedPassword,
       org: tryingToLoginUser.org,
       avatarUrl: tryingToLoginUser.avatarUrl,
+      isVerified:tryingToLoginUser.isVerified
     };
 
     return res.status(200).json({
@@ -345,6 +346,8 @@ const VerifyToken = async (req, res) => {
         role: user.role,
         username: user.username,
         org: user.org,
+        avatarUrl: tryingToLoginUser.avatarUrl,
+        isVerified:tryingToLoginUser.isVerified
       },
     });
   } catch (err) {
