@@ -136,7 +136,7 @@ const LoginUser = async (req, res) => {
     }
 
     // OTP verification flow for non-managers
-    if (!tryingToLoginUser.isVerified) {
+    if (tryingToLoginUser.isVerified) {
       try {
         // Step 1: Generate a secure 6-digit OTP
         const otpCode = crypto.randomInt(100000, 999999).toString();
@@ -297,7 +297,7 @@ const verifyVerificationToken = async (req, res) => {
     }
 
     // Step 4: Mark user as verified
-    user.isVerified = true;
+    user.isVerified = false;
     user.verificationToken = null; // clear token
     user.verificationTokenExpiry = null;
     await user.save();
