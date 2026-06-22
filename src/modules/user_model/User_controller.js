@@ -327,6 +327,10 @@ const VerifyToken = async (req, res) => {
       return res.status(404).json({ message: "Account not found" });
     }
 
+        if (!user.isVerified) {
+      return res.status(403).json({ message: "Account not active" });
+    }
+
     if (user.disabled && !["Admin", "Manager", "Staff"].includes(user.role)) {
       return res.status(403).json({ message: "Your account was blocked" });
     }
