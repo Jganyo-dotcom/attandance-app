@@ -143,8 +143,8 @@ const LoginUser = async (req, res) => {
         const otpCode = crypto.randomInt(100000, 999999).toString();
 
         // Step 2: Save OTP + expiry to user
-        tryingToLoginUser.verificationToken = otpCode;
-        tryingToLoginUser.verificationTokenExpiry = Date.now() + 5 * 60 * 1000;
+        tryingToLoginUser.verifiedToken = otpCode;
+        tryingToLoginUser.verifiedTokenExpiry = Date.now() + 5 * 60 * 1000;
         await tryingToLoginUser.save();
 
         // Step 3: Prepare Brevo email payload (full HTML)
