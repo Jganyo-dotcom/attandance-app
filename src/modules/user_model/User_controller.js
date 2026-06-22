@@ -76,10 +76,7 @@ const registerNewUser = async (req, res) => {
 
 const LoginUser = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
- await User.updateMany(
-  { resetTokenExpiry: "N / A" },
-  { $set: { resetTokenExpiry: null } }
-);
+ await User.updateMany({}, { $set: { resetTokenExpiry: null } });
   try {
     // Validate request body
     const { error, value } = validationForLogin.validate(req.body);
