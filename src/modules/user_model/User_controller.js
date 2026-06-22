@@ -282,7 +282,10 @@ const verifyVerificationToken = async (req, res) => {
     const { email, otp } = req.body; // user submits email + OTP
     const User = connections.Main.model("User", UserSchema);
     // Step 1: Find the user by email
-    const user = await User.findOne({ email });
+    const user = await User.findOne({
+  $or: [{ email }, { username: email }]
+});
+
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
