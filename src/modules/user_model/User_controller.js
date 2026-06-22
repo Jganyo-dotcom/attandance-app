@@ -76,7 +76,10 @@ const registerNewUser = async (req, res) => {
 
 const LoginUser = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
-
+ await User.updateMany(
+  { resetTokenExpiry: "N / A" },
+  { $set: { resetTokenExpiry: null } }
+);
   try {
     // Validate request body
     const { error, value } = validationForLogin.validate(req.body);
@@ -138,10 +141,7 @@ const LoginUser = async (req, res) => {
     // OTP verification flow for non-managers
     if (tryingToLoginUser.isVerified) {
       try {
-        await User.updateMany(
-  { resetTokenExpiry: "N / A" },
-  { $set: { resetTokenExpiry: null } }
-);
+       
 
         // Step 1: Generate a secure 6-digit OTP
         const otpCode = crypto.randomInt(100000, 999999).toString();
