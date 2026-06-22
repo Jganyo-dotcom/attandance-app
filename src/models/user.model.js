@@ -14,7 +14,10 @@ const UserSchema = new mongoose.Schema(
     hasChangedPassword: { type: Boolean, required: true, default: false },
     isDeleted: { type: Boolean, required: true, default: false }, //
     resetToken: { type: String, default: "N / A" },
-    resetTokenExpiry: { type: String, default: "N / A" },
+    resetTokenExpiry:{ type: Date, default: null },
+    isVerified:{type:Boolean,default:true, required:true},
+    verifiedToken:{type:String,},
+    verifiedTokenExpiry: { type: Date, default: null }
     org: {
       type: String,
       enum: ["Main", "Visa", "Teens", "N/A", "VisaUOE"],
