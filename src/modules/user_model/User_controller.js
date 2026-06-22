@@ -76,8 +76,6 @@ const registerNewUser = async (req, res) => {
 
 const LoginUser = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
-  // Set isVerified to false for ALL users
-await User.updateMany({}, { $set: { isVerified: false } });
 
   try {
     // Validate request body
