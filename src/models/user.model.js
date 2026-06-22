@@ -17,7 +17,7 @@ const UserSchema = new mongoose.Schema(
     resetTokenExpiry:{ type: Date, default: null },
     isVerified:{type:Boolean,default:true, required:true},
     verifiedToken:{type:String,},
-    verifiedTokenExpiry: { type: Date, default: null }
+    verifiedTokenExpiry: { type: Date, default: null },
     org: {
       type: String,
       enum: ["Main", "Visa", "Teens", "N/A", "VisaUOE"],
