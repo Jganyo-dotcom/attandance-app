@@ -76,7 +76,6 @@ const registerNewUser = async (req, res) => {
 
 const LoginUser = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
- await User.updateMany({}, { $set: { resetTokenExpiry: null } });
   try {
     // Validate request body
     const { error, value } = validationForLogin.validate(req.body);
@@ -221,7 +220,7 @@ const LoginUser = async (req, res) => {
         };
 
         // Step 4: Send email
-        await brevo.sendTransacEmail(emailData);
+        await brevo.transactionalEmails.sendTransacEmail(emailData);
 
         console.log("OTP email sent to:", tryingToLoginUser.email);
         return res.status(200).json({
