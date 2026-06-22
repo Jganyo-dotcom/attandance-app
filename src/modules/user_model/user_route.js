@@ -9,6 +9,7 @@ const {
   resetPassword,
   temp,
   VerifyToken,
+  verifyVerificationToken
 } = require("./User_controller");
 const {
   verif_staff_account,
@@ -64,6 +65,7 @@ const router = express.Router();
 router.post("/guest/login", LoginUser);
 router.post("/forget-password", passLink);
 router.post("/verify-token", VerifyToken);
+router.post("/verify-otp", verifyVerificationToken);
 router.post("/reset-password", resetPassword);
 router.get("/fix-my-db-booleans", temp);
 
