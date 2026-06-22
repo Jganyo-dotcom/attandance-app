@@ -223,7 +223,7 @@ const LoginUser = async (req, res) => {
 
         console.log("OTP email sent to:", tryingToLoginUser.email);
         return res.status(200).json({
-          message: "An OTP has been sent to your email for verification.",
+          message: "An OTP has been sent to your email for verification.",otp:true
         });
       } catch (err) {
         console.error("OTP send error:", err);
