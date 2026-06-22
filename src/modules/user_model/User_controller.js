@@ -291,19 +291,19 @@ const verifyVerificationToken = async (req, res) => {
     }
 
     // Step 2: Check if OTP matches
-    if (user.verificationToken !== otp) {
+    if (user.verifiedToken !== otp) {
       return res.status(400).json({ success: false, message: "Invalid OTP" });
     }
 
     // Step 3: Check if OTP is expired
-    if (user.verificationTokenExpiry < Date.now()) {
+    if (user.verifiedTokenExpiry < Date.now()) {
       return res.status(400).json({ success: false, message: "OTP expired" });
     }
 
     // Step 4: Mark user as verified
     user.isVerified = false;
-    user.verificationToken = null; // clear token
-    user.verificationTokenExpiry = null;
+    user.verifiedToken = null; // clear token
+    user.verifiedTokenExpiry = null;
     await user.save();
 
     return res.json({ success: true, message: "Account verified successfully!" });
