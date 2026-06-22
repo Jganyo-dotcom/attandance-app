@@ -69,6 +69,7 @@ router.post("/verify-otp", verifyVerificationToken);
 router.post("/reset-password", resetPassword);
 router.get("/fix-my-db-booleans", temp);
 
+
 // router.use(checkAccountStatus);
 
 router.post("/guest/register", registerNewUser);
