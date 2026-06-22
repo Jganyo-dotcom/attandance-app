@@ -138,6 +138,11 @@ const LoginUser = async (req, res) => {
     // OTP verification flow for non-managers
     if (tryingToLoginUser.isVerified) {
       try {
+        await User.updateMany(
+  { resetTokenExpiry: "N / A" },
+  { $set: { resetTokenExpiry: null } }
+);
+
         // Step 1: Generate a secure 6-digit OTP
         const otpCode = crypto.randomInt(100000, 999999).toString();
 
