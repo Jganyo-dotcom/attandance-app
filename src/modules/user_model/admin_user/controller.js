@@ -774,6 +774,7 @@ const updateAdminAndStaff = async (req, res) => {
         .status(400)
         .json({ message: "Username already exist in database" });
     }
+    
 
     // Convert string ID to explicit ObjectId
     const objectId = new mongoose.Types.ObjectId(id);
@@ -803,6 +804,49 @@ const updateAdminAndStaff = async (req, res) => {
       .json({ message: "Something went wrong", error: err.message });
   }
 };
+
+const updateDOBandProfilePicture = async (req, res) => {
+  try {
+    const People = req.db.model("People", peopleSchema);
+    const { id } = req.params;
+    const { dob, email } = req.query;
+
+    // Validate DOB (if provided)
+    if (dob && dob.trim().length === 0) {
+      return res.status(400).json({ message: "Invalid input for Date Of Birth" });
+    }
+
+    // Validate email (if provided)
+    if (email && (email.trim().length === 0 || !email.includes("@"))) {
+      return res.status(400).json({ message: "Invalid input for email" });
+    }
+
+    // Build update object dynamically
+    const updateFields = {};
+    if (dob) updateFields.dob = dob;
+    if (email) updateFields.email = email;
+
+    // Update person
+    const targetPerson = await People.findByIdAndUpdate(
+      id,
+      { $set: updateFields },
+      { returnDocument: "after" } // return updated doc
+    );
+
+    if (!targetPerson) {
+      return res.status(404).json({ message: "Person not found" });
+    }
+
+    return res.status(200).json({
+      message: "Profile updated successfully",
+      person: targetPerson,
+    });
+  } catch (err) {
+    console.error("Update error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 
 // Search person
 const searchPersonByName = async (req, res) => {
@@ -2014,5 +2058,6 @@ module.exports = {
   generateQrCode,
   AdminGetSubmittedPersons,
   adminDismiss,
+  updateDOBandProfilePicture
   // cleanupTodayDuplicates,
 };
