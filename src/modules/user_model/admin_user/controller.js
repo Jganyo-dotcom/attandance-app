@@ -14,6 +14,8 @@ const {
   adminUpdate,
 } = require("../user_validation");
 const ExcelJS = require("exceljs");
+const { BrevoClient } = require("@getbrevo/brevo");
+const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
 
 const verif_staff_account = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
@@ -816,6 +818,11 @@ const updateDOBandProfilePicture = async (req, res) => {
       return res.status(400).json({ message: "Invalid input for Date Of Birth" });
     }
 
+    const existing = await People.findOne({ email: email.toLowerCase() });
+    if (existing) {
+      return res.status(409).json({ message: "Email already exists" });
+    }
+
     // Validate email (if provided)
     if (email && (email.trim().length === 0 || !email.includes("@"))) {
       return res.status(400).json({ message: "Invalid input for email" });
@@ -846,6 +853,77 @@ const updateDOBandProfilePicture = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+
+const sendBirthdayEmails = async (req, res) => {
+  try {
+    const People = req.db.model("People", peopleSchema);
+
+    // Step 1: Find today's birthdays
+    const today = new Date();
+    const birthdayPeople = await People.find({
+      $expr: {
+        $and: [
+          { $eq: [{ $dayOfMonth: "$dob" }, today.getDate()] },
+          { $eq: [{ $month: "$dob" }, today.getMonth() + 1] }
+        ]
+      }
+    });
+
+    if (birthdayPeople.length === 0) {
+      return res.json({ message: "No birthdays today" });
+    }
+
+    // Step 2: Compile list for admins
+    const adminList = birthdayPeople.map(p => `${p.name} (${p.email})`).join("\n");
+
+    // Find admins
+    const admins = await People.find({ role: "admin" });
+
+    // Step 3: Send email to admins with the list
+    for (const admin of admins) {
+      await brevo.transactionalEmails.sendTransacEmail({
+        to: [{ email: admin.email, name: admin.name }],
+        sender: { email: "no-reply@yourcompany.com", name: "Your Company" },
+        subject: "Today's Birthday Celebrants",
+        htmlContent: `
+          <h2>Birthday Celebrants</h2>
+          <p>Here are the people celebrating today:</p>
+          <pre>${adminList}</pre>
+        `,
+      });
+    }
+
+    // Step 4: Send birthday wishes to each celebrant
+    for (const person of birthdayPeople) {
+      await brevo.transactionalEmails.sendTransacEmail({
+        to: [{ email: person.email, name: person.name }],
+        sender: { email: "no-reply@yourcompany.com", name: "Your Company" },
+        subject: "Happy Birthday 🎉",
+        htmlContent: `
+  <div style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
+    <h2 style="color: #ff4081;">🎉 Happy Birthday ${person.name}! 🎉</h2>
+    <p>On behalf of <strong>${person.org}</strong>, we celebrate you today with joy and gratitude.</p>
+    <p>May your special day be filled with happiness, laughter, and blessings that carry you through the year ahead.</p>
+    <p>We’re excited to share in your celebration — please send us your picture to WhatsApp number <strong>0503841074</strong> so we can feature you in our birthday highlights.</p>
+    <p style="margin-top:20px;">Enjoy every moment of your day, ${person.name}. You deserve it!</p>
+    <p style="color:#555; font-size:14px; margin-top:30px;">
+      Warm wishes,<br/>
+      <strong>${person.org} Team</strong>
+    </p>
+  </div>
+`
+,
+      });
+    }
+
+    return res.json({ message: "Birthday emails sent successfully" });
+  } catch (err) {
+    console.error("Birthday email error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 
 
 // Search person
@@ -1354,12 +1432,7 @@ const genderReport = async (req, res) => {
       }
     });
 
-    console.log("Female Present:", femalePresent);
-    console.log("Female Absent:", femaleAbsent);
-    console.log("Male Present:", malePresent);
-    console.log("Male Absent:", maleAbsent);
-    console.log("Unknown Present:", unknownPresent);
-    console.log("Unknown Absent:", unknownAbsent);
+    
 
     return res.json({
       date: requestedDate,
@@ -2058,6 +2131,7 @@ module.exports = {
   generateQrCode,
   AdminGetSubmittedPersons,
   adminDismiss,
-  updateDOBandProfilePicture
+  updateDOBandProfilePicture,
+  sendBirthdayEmails
   // cleanupTodayDuplicates,
 };
