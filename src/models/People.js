@@ -13,6 +13,8 @@ const PeopleSchema = new mongoose.Schema(
     gender: { type: String, enum: ["M", "F", "N/A"], default: "N/A" },
     staying: { type: Boolean, required: false, default: false },
     submitted: { type: Boolean, required: true, default: false },
+    dob: {type: Date,required:false,default: null},
+    email: {type: String,required: true,lowercase: true,trim: true},
   },
   { timestamps: true },
 );
