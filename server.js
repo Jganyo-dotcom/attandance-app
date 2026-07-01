@@ -7,7 +7,7 @@ const port = process.env.PORT || 3000;
 const cors = require("cors");
 const morgan = require("morgan");
 const guestRoutes = require("./src/public/pRoutes")
-//require("././src/models/utils/cron")
+require("././src/models/utils/cron")
 
 // const { registerAdminfunction } = require("./src/config/admin.setup");
 

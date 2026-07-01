@@ -743,7 +743,6 @@ const updatePerson = async (req, res) => {
 
 // Configure your Cloudinary keys (Make sure these are in your .env file!)
 
-
 const updateAdminAndStaff = async (req, res) => {
   const User = connections.Main.model("User", UserSchema);
   const id = req.params.id;
@@ -776,7 +775,6 @@ const updateAdminAndStaff = async (req, res) => {
         .status(400)
         .json({ message: "Username already exist in database" });
     }
-    
 
     // Convert string ID to explicit ObjectId
     const objectId = new mongoose.Types.ObjectId(id);
@@ -811,33 +809,50 @@ const updateDOBandProfilePicture = async (req, res) => {
   try {
     const People = req.db.model("People", peopleSchema);
     const { id } = req.params;
-    const { dob, email } = req.query;
+    const { dob, email } = req.query; // Consider changing req.query to req.body in your routes later
 
-    // Validate DOB (if provided)
-    if (dob && dob.trim().length === 0) {
-      return res.status(400).json({ message: "Invalid input for Date Of Birth" });
-    }
-
-    const existing = await People.findOne({ email: email.toLowerCase() });
-    if (existing) {
-      return res.status(409).json({ message: "Email already exists" });
-    }
-
-    // Validate email (if provided)
-    if (email && (email.trim().length === 0 || !email.includes("@"))) {
-      return res.status(400).json({ message: "Invalid input for email" });
-    }
-
-    // Build update object dynamically
+    // 1. Build update object dynamically & validate inputs
     const updateFields = {};
-    if (dob) updateFields.dob = dob;
-    if (email) updateFields.email = email;
 
-    // Update person
+    if (dob) {
+      if (dob.trim().length === 0) {
+        return res
+          .status(400)
+          .json({ message: "Invalid input for Date Of Birth" });
+      }
+      updateFields.dob = dob;
+    }
+
+    if (email) {
+      const normalizedEmail = email.toLowerCase().trim();
+
+      if (normalizedEmail.length === 0 || !normalizedEmail.includes("@")) {
+        return res.status(400).json({ message: "Invalid input for email" });
+      }
+
+      // 2. CHECK DUPES: Find if email exists but belongs to a DIFFERENT user
+      const emailExists = await People.findOne({
+        email: normalizedEmail,
+        _id: { $ne: id }, // Excludes the current user from the search
+      });
+
+      if (emailExists) {
+        return res.status(409).json({ message: "Email already exists" });
+      }
+
+      updateFields.email = normalizedEmail;
+    }
+
+    // 3. Prevent database call if no fields are provided for update
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ message: "No fields provided for update" });
+    }
+
+    // 4. Update person
     const targetPerson = await People.findByIdAndUpdate(
       id,
       { $set: updateFields },
-      { returnDocument: "after" } // return updated doc
+      { returnDocument: "after", runValidators: true }, // runValidators ensures schema rules apply
     );
 
     if (!targetPerson) {
@@ -855,76 +870,291 @@ const updateDOBandProfilePicture = async (req, res) => {
 };
 
 
-const sendBirthdayEmails = async (req, res) => {
-  try {
-    const People = req.db.model("People", peopleSchema);
+// Helper function to handle timing delays
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    // Step 1: Find today's birthdays
+const sendBirthdayEmails = async () => {
+  try {
     const today = new Date();
-    const birthdayPeople = await People.find({
-      $expr: {
-        $and: [
-          { $eq: [{ $dayOfMonth: "$dob" }, today.getDate()] },
-          { $eq: [{ $month: "$dob" }, today.getMonth() + 1] }
-        ]
-      }
-    });
+    console.log(`\n=========================================`);
+    console.log(
+      `[${new Date().toISOString()}] PRODUCTION: Launching Asynchronous Multi-Channel Birthday Engine...`,
+    );
+
+    // Strict midnight ranges for target date detection
+    const start = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    );
+    const end = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() + 1,
+    );
+
+    const birthdayPeople = [];
+
+    // Step 1: Scan all sharded database nodes to pull today's global celebrants
+    for (const orgName of Object.keys(connections)) {
+      const db = connections[orgName];
+      const People = db.model("People", peopleSchema);
+
+      const orgBirthdays = await People.find({
+        dob: { $gte: start, $lt: end },
+      });
+
+      birthdayPeople.push(
+        ...orgBirthdays.map((p) => ({ ...p.toObject(), org: orgName })),
+      );
+    }
+
+    console.log(
+      `[SYSTEM LOG] Found ${birthdayPeople.length} total active celebrants globally today.`,
+    );
 
     if (birthdayPeople.length === 0) {
-      return res.json({ message: "No birthdays today" });
+      console.log(
+        `[SYSTEM LOG] No birthday metrics found to process for ${today.toLocaleDateString()}. Exiting job safely.`,
+      );
+      console.log(`=========================================\n`);
+      return;
     }
 
-    // Step 2: Compile list for admins
-    const adminList = birthdayPeople.map(p => `${p.name} (${p.email})`).join("\n");
+    // Step 2: Extract all verified system administrators across the Main architecture
+    const User = connections.Main.model("User", UserSchema);
+    const orgAdmins = await User.find({
+      role: { $regex: /^admin$/i },
+      isDeleted: false,
+      disabled: false,
+    });
 
-    // Find admins
-    const admins = await People.find({ role: "admin" });
+    console.log(
+      `[SYSTEM LOG] Found ${orgAdmins.length} active administrative targets across management channels.`,
+    );
 
-    // Step 3: Send email to admins with the list
-    for (const admin of admins) {
-      await brevo.transactionalEmails.sendTransacEmail({
-        to: [{ email: admin.email, name: admin.name }],
-        sender: { email: "no-reply@yourcompany.com", name: "Your Company" },
-        subject: "Today's Birthday Celebrants",
-        htmlContent: `
-          <h2>Birthday Celebrants</h2>
-          <p>Here are the people celebrating today:</p>
-          <pre>${adminList}</pre>
-        `,
-      });
-    }
+    // ==========================================
+    // PIPELINE A: THE ADMINISTRATIVE NOTIFICATION BRANCH
+    // ==========================================
+    const runAdminPipeline = async () => {
+      console.log(
+        `[PIPELINE START] Administrative notification engine online.`,
+      );
 
-    // Step 4: Send birthday wishes to each celebrant
-    for (const person of birthdayPeople) {
-      await brevo.transactionalEmails.sendTransacEmail({
-        to: [{ email: person.email, name: person.name }],
-        sender: { email: "no-reply@yourcompany.com", name: "Your Company" },
-        subject: "Happy Birthday 🎉",
-        htmlContent: `
-  <div style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
-    <h2 style="color: #ff4081;">🎉 Happy Birthday ${person.name}! 🎉</h2>
-    <p>On behalf of <strong>${person.org}</strong>, we celebrate you today with joy and gratitude.</p>
-    <p>May your special day be filled with happiness, laughter, and blessings that carry you through the year ahead.</p>
-    <p>We’re excited to share in your celebration — please send us your picture to WhatsApp number <strong>0503841074</strong> so we can feature you in our birthday highlights.</p>
-    <p style="margin-top:20px;">Enjoy every moment of your day, ${person.name}. You deserve it!</p>
-    <p style="color:#555; font-size:14px; margin-top:30px;">
-      Warm wishes,<br/>
-      <strong>${person.org} Team</strong>
-    </p>
-  </div>
-`
-,
-      });
-    }
+      for (let i = 0; i < orgAdmins.length; i++) {
+        const admin = orgAdmins[i];
+        if (!admin.email) continue;
 
-    return res.json({ message: "Birthday emails sent successfully" });
+        const filteredCelebrants = birthdayPeople.filter(
+          (person) =>
+            person.org.toLowerCase().trim() === admin.org.toLowerCase().trim(),
+        );
+
+        if (filteredCelebrants.length === 0) {
+          console.log(
+            `[SKIP LOG] Admin ${admin.email} has no registered celebrants today inside division: ${admin.org}`,
+          );
+          continue;
+        }
+
+        const adminHtmlRows = filteredCelebrants
+          .map(
+            (p) => `
+            <tr>
+              <td style="padding:12px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;"><strong>${p.name}</strong></td>
+              <td style="padding:12px;font-size:14px;color:#475569;border-bottom:1px solid #f1f5f9;">${p.email || "N/A"}</td>
+              <td style="padding:12px;font-size:12px;border-bottom:1px solid #f1f5f9;"><span style="background-color:#e2e8f0;color:#334155;padding:4px 8px;border-radius:4px;font-weight:600;">${p.org}</span></td>
+            </tr>`,
+          )
+          .join("");
+
+        try {
+          const adminResponse =
+            await brevo.transactionalEmails.sendTransacEmail({
+              to: [{ email: admin.email, name: admin.name }],
+              sender: { email: "elikemjjames@gmail.com", name: "PresencePro" },
+              subject: `Daily Briefing: ${admin.org} Birthday Celebrants`,
+              htmlContent: `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Birthday Celebrants Summary</title>
+              </head>
+              <body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f8fafc;padding:48px 20px;">
+                  <tr>
+                    <td align="center">
+                      <table width="100%" style="max-width:600px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:40px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                        <tr>
+                          <td style="padding-bottom:24px;border-bottom:1px solid #f1f5f9;">
+                            <span style="font-size:18px;font-weight:700;color:#0f172a;">PresencePro System</span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding-top:24px;">
+                            <h2 style="margin:0 0 12px;font-size:20px;font-weight:600;color:#0f172a;">Today's ${admin.org} Birthday Records</h2>
+                            <p style="margin:0 0 24px;font-size:14px;line-height:24px;color:#475569;">
+                              Hello ${admin.name},<br><br>
+                              The system identified the following members celebrating their birthdays today within the <strong>${admin.org}</strong> division on <strong>${today.toLocaleDateString()}</strong>:
+                            </p>
+                            <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:24px;text-align:left;">
+                              <thead>
+                                <tr style="background-color:#f8fafc;">
+                                  <th style="padding:12px;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Name</th>
+                                  <th style="padding:12px;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Email Address</th>
+                                  <th style="padding:12px;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Organization</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                ${adminHtmlRows}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="border-top:1px solid #f1f5f9;padding-top:24px;">
+                            <p style="margin:0;font-size:12px;color:#94a3b8;line-height:18px;">
+                              &copy; ${new Date().getFullYear()} PresencePro. All rights reserved.
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </body>
+              </html>
+            `,
+            });
+          console.log(
+            `📢 [ADMIN DIGEST DISPATCHED] Recipient: ${admin.email} | Division: ${admin.org} | ID: ${adminResponse.messageId || adminResponse.id}`,
+          );
+        } catch (error) {
+          console.error(
+            `[ERROR] Failed sending admin notification to ${admin.email}:`,
+            error.message,
+          );
+        }
+
+        // ⏳ Anti-spam pacing inside the admin loop
+        if (i < orgAdmins.length - 1) {
+          console.log(
+            `[RATE LIMIT SHIELD] Pausing admin pipeline for 120 seconds before next dispatch...`,
+          );
+          await delay(120000);
+        }
+      }
+      console.log(
+        `[PIPELINE COMPLETE] Administrative notification engine finished processing.`,
+      );
+    };
+
+    // ==========================================
+    // PIPELINE B: THE DIRECT CELEBRANT CARD BRANCH
+    // ==========================================
+    const runCelebrantPipeline = async () => {
+      console.log(`[PIPELINE START] Direct celebrant greeting engine online.`);
+      const validCelebrants = birthdayPeople.filter((person) => person.email);
+
+      if (validCelebrants.length === 0) {
+        console.log(
+          "[SYSTEM LOG] No valid celebrant email profiles detected today.",
+        );
+        return;
+      }
+
+      for (let i = 0; i < validCelebrants.length; i++) {
+        const person = validCelebrants[i];
+
+        // ⏳ Anti-spam pacing inside the celebrant loop (runs before each greeting email)
+        console.log(
+          `[RATE LIMIT SHIELD] Pausing for 120 seconds before delivering greeting to ${person.email}...`,
+        );
+        await delay(120000);
+
+        try {
+          const celebrantResponse =
+            await brevo.transactionalEmails.sendTransacEmail({
+              to: [{ email: person.email, name: person.name }],
+              sender: { email: "elikemjjames@gmail.com", name: "PresencePro" },
+              subject: `Happy Birthday! 🎉 (${today.toLocaleDateString()})`,
+              htmlContent: `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Happy Birthday</title>
+              </head>
+              <body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f8fafc;padding:48px 20px;">
+                  <tr>
+                    <td align="center">
+                      <table width="100%" style="max-width:520px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:40px;box-shadow:0 1px 3px rgba(0,0,0,0.05);text-align:center;">
+                        <tr>
+                          <td style="font-size:48px;padding-bottom:16px;">🎉</td>
+                        </tr>
+                        <tr>
+                          <td>
+                            <h2 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#0f172a;">Happy Birthday, ${person.name}!</h2>
+                            <p style="margin:0 0 24px;font-size:15px;line-height:26px;color:#475569;text-align:left;">
+                              On this special day, the entire community at <strong>${person.org}</strong> comes together to celebrate you.
+                              Thank you for being an indispensable part of our journey. We value your presence and wish you a year ahead filled with joy, peace, and great achievements!
+                            </p>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="border-top:1px solid #f1f5f9;padding-top:24px;margin-top:16px;">
+                            <p style="margin:0;font-size:13px;font-weight:600;color:#0f172a;">Warmest Regards,</p>
+                            <p style="margin:4px 0 0;font-size:14px;color:#64748b;font-weight:500;">The PresencePro Team & ${person.org}</p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </body>
+              </html>
+            `,
+            });
+          console.log(
+            `🎁 [CELEBRANT GREETING] (${i + 1}/${validCelebrants.length}) Sent to: ${person.email}, Brevo ID: ${celebrantResponse.messageId || celebrantResponse.id}`,
+          );
+        } catch (error) {
+          console.error(
+            `[ERROR] Failed sending direct greeting to ${person.email}:`,
+            error.message,
+          );
+        }
+      }
+      console.log(
+        `[PIPELINE COMPLETE] Direct celebrant engine finished processing.`,
+      );
+    };
+
+    // ==========================================
+    // EXECUTION SEQUENCING PIPELINES
+    // ==========================================
+    // 1. Run admin dispatches first
+    await runAdminPipeline();
+
+    // 2. Pause 2 minutes between admin summary and individual greetings
+    console.log(
+      `[RATE LIMIT SHIELD] Administrative block complete. Cooling down for 120 seconds before launching outreach block...`,
+    );
+    await delay(120000);
+
+    // 3. Run individual user birthday card wishes
+    await runCelebrantPipeline();
+
+    console.log("All birthday lifecycle operations completed successfully.");
+    console.log(`=========================================\n`);
   } catch (err) {
-    console.error("Birthday email error:", err);
-    return res.status(500).json({ message: "Server error" });
+    console.error("Birthday email batch crash error:", err);
   }
 };
-
-
 
 // Search person
 const searchPersonByName = async (req, res) => {
@@ -1431,8 +1661,6 @@ const genderReport = async (req, res) => {
         if (r.status === "A") unknownAbsent++;
       }
     });
-
-    
 
     return res.json({
       date: requestedDate,
@@ -2132,6 +2360,6 @@ module.exports = {
   AdminGetSubmittedPersons,
   adminDismiss,
   updateDOBandProfilePicture,
-  sendBirthdayEmails
+  sendBirthdayEmails,
   // cleanupTodayDuplicates,
 };

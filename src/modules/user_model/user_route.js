@@ -9,7 +9,7 @@ const {
   resetPassword,
   temp,
   VerifyToken,
-  verifyVerificationToken
+  verifyVerificationToken,
 } = require("./User_controller");
 const {
   verif_staff_account,
@@ -32,6 +32,8 @@ const {
   getAllStaff,
   updatePerson,
   updateAdminAndStaff,
+  updateDOBandProfilePicture,
+  sendBirthdayEmails,
   endOfDayReport,
   genderReport,
   personalReport,
@@ -68,7 +70,6 @@ router.post("/verify-token", VerifyToken);
 router.post("/verify-otp", verifyVerificationToken);
 router.post("/reset-password", resetPassword);
 router.get("/fix-my-db-booleans", temp);
-
 
 // router.use(checkAccountStatus);
 
@@ -207,6 +208,20 @@ router.get(
   authmiddleware,
   CheckroleonAll,
   exportAttendance,
+);
+
+router.patch(
+  "/admin/update/:id/profile/dob",
+  authmiddleware,
+  CheckroleonAll,
+  updateDOBandProfilePicture,
+);
+
+router.get(
+  "/admin/export-attendance/:sessionId",
+  authmiddleware,
+  CheckroleonAll,
+  sendBirthdayEmails,
 );
 
 // delete a person in the database
