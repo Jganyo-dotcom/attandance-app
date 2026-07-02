@@ -52,6 +52,7 @@ const {
   generateQrCode,
   AdminGetSubmittedPersons,
   adminDismiss,
+  healthCheck,
   // cleanupTodayDuplicates,
 } = require("./admin_user/controller");
 const {
@@ -70,6 +71,7 @@ router.post("/verify-token", VerifyToken);
 router.post("/verify-otp", verifyVerificationToken);
 router.post("/reset-password", resetPassword);
 router.get("/fix-my-db-booleans", temp);
+router.get("/health", healthCheck);
 
 // router.use(checkAccountStatus);
 

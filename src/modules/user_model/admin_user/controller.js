@@ -869,7 +869,6 @@ const updateDOBandProfilePicture = async (req, res) => {
   }
 };
 
-
 // Helper function to handle timing delays
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -2319,6 +2318,18 @@ const adminDismiss = async (req, res) => {
   }
 };
 
+// Lightweight health-check endpoint to keep the server warm
+const healthCheck = (req, res) => {
+  console.log(
+    "Ping received at " + new Date().toISOString() + " - Keeping server awake!",
+  );
+
+  res.status(200).json({
+    status: "active",
+    message: "Server is warm and operational.",
+  });
+};
+
 module.exports = {
   verif_staff_account,
   unblock_staff_account,
@@ -2361,5 +2372,6 @@ module.exports = {
   adminDismiss,
   updateDOBandProfilePicture,
   sendBirthdayEmails,
+  healthCheck,
   // cleanupTodayDuplicates,
 };
