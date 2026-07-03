@@ -14,6 +14,8 @@ const PeopleSchema = new mongoose.Schema(
     staying: { type: Boolean, required: false, default: false },
     submitted: { type: Boolean, required: true, default: false },
     dob: { type: Date, required: false, default: null },
+    isNewMember: { type: Boolean, default: null },
+    dateJoined: { type: Date, required: false, default: null },
     email: {
       type: String,
       required: false,

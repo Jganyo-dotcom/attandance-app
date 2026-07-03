@@ -612,6 +612,12 @@ const createPerson = async (req, res) => {
       count: nextCount,
     };
 
+    if (value.isNewMember) {
+      newPersonData.isNewMember = value.isNewMember;
+      // Store as ISO string for consistency
+      newPersonData.dateJoined = new Date().toISOString();
+    }
+
     if (value.contact && value.contact.trim().length > 0) {
       newPersonData.contact = value.contact;
     } else {
@@ -1383,6 +1389,7 @@ const exportAttendance = async (req, res) => {
 const bcrypt = require("bcrypt");
 const { sendMail } = require("../../../models/utils/email");
 const StayedSchema = require("../../../models/stayed");
+const { boolean } = require("joi");
 
 const AdminChangePassword = async (req, res) => {
   try {
