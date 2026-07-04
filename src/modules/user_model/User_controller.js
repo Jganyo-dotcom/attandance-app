@@ -136,7 +136,7 @@ const LoginUser = async (req, res) => {
     }
 
     // OTP verification flow for non-managers
-    if (tryingToLoginUser.isVerified) {
+    if (!tryingToLoginUser.isVerified) {
       try {
        
 
