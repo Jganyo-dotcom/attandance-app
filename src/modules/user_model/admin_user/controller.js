@@ -15,6 +15,9 @@ const {
 } = require("../user_validation");
 const ExcelJS = require("exceljs");
 const { BrevoClient } = require("@getbrevo/brevo");
+const bcrypt = require("bcrypt");
+const { sendMail, sendUniversalMail } = require("../../../models/utils/email");
+const StayedSchema = require("../../../models/stayed");
 const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
 
 const verif_staff_account = async (req, res) => {
@@ -382,7 +385,7 @@ const closeSession = async (req, res) => {
 
     // 4. Get absent people
     const absentPeople = await People.find({ status: "A" }).select(
-      "_id gender",
+      "_id gender isNewMember",
     );
 
     for (const p of absentPeople) {
@@ -394,6 +397,7 @@ const closeSession = async (req, res) => {
             status: "A",
             gender: p.gender,
             markedBy: req.user.id,
+            isNewMember: p.isNewMember,
           },
         },
         { upsert: true },
@@ -404,7 +408,10 @@ const closeSession = async (req, res) => {
     await People.updateMany({ status: "P" }, { $set: { status: "A" } });
     await People.updateMany({ staying: true }, { $set: { staying: false } });
 
-    // 5. Upsert attendance records (no duplicates possible)
+    // 🚀 Fire in the background without making the user wait!
+    checkOnMissingNewbies(req).catch((err) =>
+      console.error("Background email process error:", err),
+    );
 
     return res.status(200).json({ message: "Session closed", closedSession });
   } catch (err) {
@@ -413,82 +420,105 @@ const closeSession = async (req, res) => {
   }
 };
 
-// Run this once to clean up today's duplicate "Absent" records
-// Reveal today's duplicate "Absent" records without deleting them
-// async function cleanupTodayDuplicates(req, res) {
-//   try {
-//     const Attendance = req.db.model("Attendance", attendanceSchema);
-//     const todayString = new Date().toISOString().split("T")[0];
+const checkOnMissingNewbies = async (req) => {
+  // Helper delay function for anti-spam tracking
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  try {
+    const Attendance = req.db.model("Attendance", attendanceSchema);
+    const People = req.db.model("People", peopleSchema);
 
-//     // Find all absent records for today
-//     const records = await Attendance.find({ date: todayString, status: "A" });
+    // 1. Get today's exact date string used for this session
+    const todayDateString = new Date().toISOString().split("T")[0];
 
-//     // Group by person (name field)
-//     const grouped = {};
-//     records.forEach((rec) => {
-//       const key = rec.name.toString();
-//       if (!grouped[key]) grouped[key] = [];
-//       grouped[key].push(rec);
-//     });
+    console.log(`Sweeping for absent newbies on date: ${todayDateString}`);
 
-//     // Collect duplicates
-//     const duplicates = [];
-//     for (const key of Object.keys(grouped)) {
-//       if (grouped[key].length > 1) {
-//         duplicates.push({
-//           personId: key,
-//           count: grouped[key].length,
-//           records: grouped[key],
-//         });
-//       }
-//     }
+    // 2. Query today's attendance for anyone marked Absent ('A') who is a New Member
+    const absentNewbiesRecords = await Attendance.find({
+      date: todayDateString,
+      status: "A",
+      isNewMember: true,
+    }).select("name");
 
-//     return res.status(200).json({
-//       message: "Today's duplicate absent records",
-//       duplicates,
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     return res.status(500).json({ message: "Error revealing duplicates" });
-//   }
-// }
+    if (absentNewbiesRecords.length === 0) {
+      console.log("Wonderful! No newbies missed church today.");
+      return;
+    }
 
-// async function cleanupTodayDuplicates(req, res) {
-//   try {
-//     const Attendance = req.db.model("Attendance", attendanceSchema);
-//     const todayString = new Date().toISOString().split("T")[0];
+    // Extract the raw unique Person Object IDs
+    const missingNewbieIds = absentNewbiesRecords.map((record) => record.name);
 
-//     // Find all records for today (any status)
-//     const records = await Attendance.find({ date: todayString });
+    // 3. Look up their real names and email contact info from the People Collection
+    const missingPeopleDetails = await People.find({
+      _id: { $in: missingNewbieIds },
+    });
 
-//     // Group by person
-//     const grouped = {};
-//     records.forEach((rec) => {
-//       const key = rec.name.toString();
-//       if (!grouped[key]) grouped[key] = [];
-//       grouped[key].push(rec);
-//     });
+    let counter = 0;
 
-//     // For each person, keep the earliest record and delete the rest
-//     for (const key of Object.keys(grouped)) {
-//       const duplicates = grouped[key];
-//       if (duplicates.length > 1) {
-//         // Sort by createdAt so we keep the first one
-//         duplicates.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-//         const [keep, ...remove] = duplicates;
-//         const removeIds = remove.map((r) => r._id);
-//         await Attendance.deleteMany({ _id: { $in: removeIds } });
-//       }
-//     }
+    // 4. Loop through them and send out your universal emails safely
+    for (const person of missingPeopleDetails) {
+      if (person.email && person.email.includes("@")) {
+        // Custom heartfelt message checking in on them
+        const customMessage = `
+          <h2 style="color: #2c3e50; font-family: sans-serif;">Hi ${person.name}, ❤️</h2>
+          
+          <p style="font-size: 16px; color: #34495e; line-height: 1.6;">
+            We missed you at church today! Our service was beautiful, but it truly wasn't the same 
+            without your presence in fellowship with us. 
+          </p>
+          
+          <p style="font-size: 16px; color: #34495e; line-height: 1.6;">
+            We wanted to reach out and check in to make sure you are doing completely okay. We hope 
+            there is no problem at all, and that you are just having a restful, refreshing weekend. 
+          </p>
+          
+          <p style="font-size: 16px; color: #34495e; line-height: 1.6; font-weight: bold;">
+            Please know that you are deeply valued here. If you need prayers, support, or anything at all 
+            this week, do not hesitate to reach back out to us. 
+          </p>
+          
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+          
+          <p style="font-size: 14px; color: #7f8c8d; margin-bottom: 5px;">Sending you peace and love,${person.org}</p>
+          <p style="font-size: 16px; color: #2c3e50; font-weight: bold; margin-top: 0;">PresencePro</p>
+        `;
 
-//     return res.status(200).json({ message: "Mixed duplicates cleaned up for today" });
-//   } catch (err) {
-//     console.error(err);
-//     return res.status(500).json({ message: "Error cleaning mixed duplicates" });
-//   }
-// }
+        const emailSubject = "We missed you today! Checking in on you";
+
+        // Route using your established universal mail configuration function
+        await sendUniversalMail(
+          person.email,
+          person.name,
+          customMessage,
+          emailSubject,
+        );
+        counter++;
+
+        // Strict 5-second anti-spam delay gate
+        if (
+          missingPeopleDetails.indexOf(person) !==
+          missingPeopleDetails.length - 1
+        ) {
+          console.log(
+            "Anti-Spam Delay: Waiting 5 seconds before checking on the next person...",
+          );
+          await delay(5000);
+        }
+      }
+    }
+
+    console.log(
+      `Successfully completed daily absent newbie check. Sent ${counter} care emails.`,
+    );
+  } catch (error) {
+    console.error(
+      "Error executing missing newbie email check tracking routine:",
+      error,
+    );
+  }
+};
 
 // Mark present
+
 const markAsPresent = async (req, res) => {
   try {
     const Session = req.db.model("Session", sessionSchema);
@@ -613,6 +643,7 @@ const createPerson = async (req, res) => {
     };
 
     if (value.isNewMember) {
+      console.log(value.isNewMember);
       newPersonData.isNewMember = value.isNewMember;
       // Store as ISO string for consistency
       newPersonData.dateJoined = new Date().toISOString();
@@ -636,6 +667,80 @@ const createPerson = async (req, res) => {
     return res
       .status(500)
       .json({ message: "Something went wrong", error: err.message });
+  }
+};
+
+const sendWelcomeEmailToNewbies = async (req, res) => {
+  // Helper helper function to handle the precise delay
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const People = req.db.model("People", peopleSchema);
+  const todayDateString = new Date().toISOString().split("T")[0];
+
+  try {
+    const newbies = await People.find({
+      isNewMember: true,
+      dateJoined: todayDateString,
+    });
+
+    if (newbies.length === 0) {
+      return res.status(200).json({ message: "No new members found today." });
+    }
+
+    let emailsSent = 0;
+
+    for (const person of newbies) {
+      // Validate that contact is actually an email address
+      if (person.contact && person.contact.includes("@")) {
+        // A warmer, more welcoming and heartfelt message payload
+        const msg = `
+          <h2 style="color: #2c3e50; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">Hello ${person.name}, ✨</h2>
+          
+          <p style="font-size: 16px; color: #34495e; line-height: 1.6;">
+            ${person.org} wants to take a quick moment to say a massive thank you for sharing your time with us today! 
+            It was an absolute joy and privilege to fellowship with you. Your presence brought a truly 
+            special warmth to our service, and we feel incredibly blessed that you chose to spend your day with us.
+          </p>
+          
+          <p style="font-size: 16px; color: #34495e; line-height: 1.6;">
+            We hope you felt right at home and experienced the depth of love and community we share here. 
+            You are always welcome in our family, and we are already looking forward to the next time we get 
+            to see your smiling face and share in fellowship together.
+          </p>
+          
+          <p style="font-size: 16px; color: #34495e; line-height: 1.6; font-weight: bold;">
+            May your week ahead be beautifully blessed, filled with peace, unmeasurable joy, and favor!
+          </p>
+          
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+          
+          <p style="font-size: 14px; color: #7f8c8d; margin-bottom: 5px;">With love and warmest regards from ${person.org},</p>
+          <p style="font-size: 16px; color: #2c3e50; font-weight: bold; margin-top: 0;">Your PresencePro🤝</p>
+        `;
+
+        // Executing the universal function call
+        await sendUniversalMail(
+          person.email,
+          person.name,
+          msg,
+          "We loved fellowshiping with you!",
+        );
+        emailsSent++;
+
+        // 5-second anti-spam delay timer (skipped on the very last person to save time)
+        if (newbies.indexOf(person) !== newbies.length - 1) {
+          console.log(
+            `Waiting 5 seconds before routing next email to avoid spam flag hooks...`,
+          );
+          await delay(5000);
+        }
+      }
+    }
+
+    return res.status(200).json({
+      message: `Completed processing. ${emailsSent} automated daily welcome emails pushed out successfully.`,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };
 
@@ -1385,11 +1490,6 @@ const exportAttendance = async (req, res) => {
     res.status(500).json({ message: "Something went wrong" });
   }
 };
-
-const bcrypt = require("bcrypt");
-const { sendMail } = require("../../../models/utils/email");
-const StayedSchema = require("../../../models/stayed");
-const { boolean } = require("joi");
 
 const AdminChangePassword = async (req, res) => {
   try {

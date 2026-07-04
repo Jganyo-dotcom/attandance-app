@@ -13,6 +13,7 @@ const RegisterSchema = new mongoose.Schema(
       ref: "People",
       required: true,
     },
+    isNewMember: { type: Boolean, default: null },
     gender: { type: String, enum: ["M", "F", "N/A"], default: "N/A" },
     markedBy: {
       type: mongoose.Schema.Types.ObjectId,
