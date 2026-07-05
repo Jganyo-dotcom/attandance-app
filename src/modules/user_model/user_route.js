@@ -53,6 +53,7 @@ const {
   AdminGetSubmittedPersons,
   adminDismiss,
   healthCheck,
+  getNewMembersByDate,
   // cleanupTodayDuplicates,
 } = require("./admin_user/controller");
 const {
@@ -143,6 +144,12 @@ router.get(
 
 // route to get all absent people
 router.get("/Absents", authmiddleware, CheckroleonAll, getAllAbsent);
+router.get(
+  "/admin/newbies",
+  authmiddleware,
+  CheckroleonAll,
+  getNewMembersByDate,
+);
 
 // route to get the staff pending accounts
 router.get(

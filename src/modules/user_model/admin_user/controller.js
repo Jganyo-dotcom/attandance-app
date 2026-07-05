@@ -2425,6 +2425,70 @@ const adminDismiss = async (req, res) => {
   }
 };
 
+const getNewMembersByDate = async (req, res) => {
+  try {
+    const People = req.db.model("People", peopleSchema);
+    const { type, value } = req.query;
+
+    if (!type || !value) {
+      return res.status(400).json({
+        message: "Missing query parameters. 'type' and 'value' are required.",
+      });
+    }
+
+    let startDate, endDate;
+
+    // 1. Calculate the start and end of the date window dynamically
+    if (type === "full") {
+      // value is "2026-07-06"
+      startDate = new Date(`${value}T00:00:00.000Z`);
+      endDate = new Date(`${value}T23:59:59.999Z`);
+    } else if (type === "month") {
+      // value is "2026-07"
+      const [year, month] = value.split("-");
+      startDate = new Date(
+        Date.UTC(parseInt(year), parseInt(month) - 1, 1, 0, 0, 0),
+      );
+      // Gets the exact last millisecond of that calendar month
+      endDate = new Date(
+        Date.UTC(parseInt(year), parseInt(month), 0, 23, 59, 59, 999),
+      );
+    } else if (type === "year") {
+      // value is "2026"
+      const yearNum = parseInt(value);
+      startDate = new Date(Date.UTC(yearNum, 0, 1, 0, 0, 0));
+      endDate = new Date(Date.UTC(yearNum, 11, 31, 23, 59, 59, 999));
+    } else {
+      return res.status(400).json({ message: "Invalid type selection." });
+    }
+
+    console.log(
+      `[Database Query] Searching range from: ${startDate.toISOString()} to: ${endDate.toISOString()}`,
+    );
+
+    // 2. Query Mongoose using clean mathematical range operators ($gte / $lt)
+    const newbies = await People.find({
+      isNewMember: true,
+      dateJoined: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+    }).sort({ name: 1 });
+
+    return res.status(200).json({
+      success: true,
+      count: newbies.length,
+      newMembers: newbies,
+    });
+  } catch (err) {
+    console.error("Backend error filtering newbies:", err);
+    return res.status(500).json({
+      message: "Something went wrong while executing search criteria",
+      error: err.message,
+    });
+  }
+};
+
 // Lightweight health-check endpoint to keep the server warm
 const healthCheck = (req, res) => {
   console.log(
@@ -2480,5 +2544,6 @@ module.exports = {
   updateDOBandProfilePicture,
   sendBirthdayEmails,
   healthCheck,
+  getNewMembersByDate,
   // cleanupTodayDuplicates,
 };
