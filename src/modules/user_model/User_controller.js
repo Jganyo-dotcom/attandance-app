@@ -130,10 +130,6 @@ const LoginUser = async (req, res) => {
 
       await tryingToLoginUser.save();
 
-      if (tryingToLoginUser.disabled) {
-        return res.status(403).json({ message: "Account has been blocked" });
-      }
-
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
