@@ -7,7 +7,6 @@ const crypto = require("crypto");
 const { sendMail } = require("../../models/utils/email");
 const { BrevoClient } = require("@getbrevo/brevo");
 
-
 // Always bind User to the main connection
 
 // Now you can safely use User everywhere
@@ -84,13 +83,18 @@ const LoginUser = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    // Find user by email OR username
+    // Find user by email OR username (Case-insensitive check is highly recommended here)
     const tryingToLoginUser = await User.findOne({
-      $or: [{ email: value.main }, { username: value.main }],
+      $or: [{ email: value.main.trim() }, { username: value.main.trim() }],
     });
 
     if (!tryingToLoginUser) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    // Deleted account check first
+    if (tryingToLoginUser.isDeleted === true) {
+      return res.status(404).json({ message: "Account not found" });
     }
 
     // Blocked account check
@@ -116,31 +120,31 @@ const LoginUser = async (req, res) => {
 
     if (!comparePasswords) {
       tryingToLoginUser.login_attempt -= 1;
-      await tryingToLoginUser.save();
 
       if (
         tryingToLoginUser.login_attempt <= 0 &&
         !["Admin", "Manager"].includes(tryingToLoginUser.role)
       ) {
         tryingToLoginUser.disabled = true;
-        await tryingToLoginUser.save();
+      }
+
+      await tryingToLoginUser.save();
+
+      if (tryingToLoginUser.disabled) {
         return res.status(403).json({ message: "Account has been blocked" });
       }
 
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Deleted account check
-    if (tryingToLoginUser.isDeleted === true) {
-      return res.status(404).json({ message: "Account not found" });
-    }
+    // ==========================================
+    // PASSWORD IS CORRECT PAST This point
+    // ==========================================
 
-    // OTP verification flow for non-managers
+    // OTP verification flow for unverified users
     if (!tryingToLoginUser.isVerified) {
       try {
-       
-
-        // Step 1: Generate a secure 6-digit OTP
+        // Step 1: Generate a secure 6-digit OTP string
         const otpCode = crypto.randomInt(100000, 999999).toString();
 
         // Step 2: Save OTP + expiry to user
@@ -148,9 +152,11 @@ const LoginUser = async (req, res) => {
         tryingToLoginUser.verifiedTokenExpiry = Date.now() + 5 * 60 * 1000;
         await tryingToLoginUser.save();
 
-        // Step 3: Prepare Brevo email payload (full HTML)
+        // Step 3: Prepare Brevo email payload
         const emailData = {
-          to: [{ email: tryingToLoginUser.email, name: tryingToLoginUser.name }],
+          to: [
+            { email: tryingToLoginUser.email, name: tryingToLoginUser.name },
+          ],
           sender: { email: "elikemjjames@gmail.com", name: "PresencePro" },
           subject: "Account Verification",
           htmlContent: `
@@ -161,18 +167,16 @@ const LoginUser = async (req, res) => {
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
               <title>Verify Your Account</title>
             </head>
-            <body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+            <body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
               <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f8fafc;padding:48px 20px;">
                 <tr>
                   <td align="center">
                     <table width="100%" style="max-width:520px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:40px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                      <!-- Header -->
                       <tr>
                         <td style="padding-bottom:24px;border-bottom:1px solid #f1f5f9;">
                           <span style="font-size:18px;font-weight:700;color:#0f172a;">PresencePro</span>
                         </td>
                       </tr>
-                      <!-- Body -->
                       <tr>
                         <td style="padding-top:24px;">
                           <h2 style="margin:0 0 12px;font-size:20px;font-weight:600;color:#0f172a;">Verify your identity</h2>
@@ -182,19 +186,17 @@ const LoginUser = async (req, res) => {
                           </p>
                         </td>
                       </tr>
-                      <!-- OTP Block -->
                       <tr>
                         <td align="center" style="padding:16px 0 24px;">
                           <table border="0" cellspacing="0" cellpadding="0" style="background-color:#f1f5f9;border-radius:8px;">
                             <tr>
-                              <td style="padding:14px 32px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:6px;color:#0f172a;">
+                              <td style="padding:14px 32px;font-family:monospace;font-size:32px;font-weight:700;letter-spacing:6px;color:#0f172a;">
                                 ${otpCode}
                               </td>
                             </tr>
                           </table>
                         </td>
                       </tr>
-                      <!-- Expiry -->
                       <tr>
                         <td>
                           <p style="margin:0 0 32px;font-size:13px;line-height:22px;color:#64748b;">
@@ -202,12 +204,10 @@ const LoginUser = async (req, res) => {
                           </p>
                         </td>
                       </tr>
-                      <!-- Footer -->
                       <tr>
                         <td style="border-top:1px solid #f1f5f9;padding-top:24px;">
                           <p style="margin:0;font-size:12px;color:#94a3b8;line-height:18px;">
-                            &copy; ${new Date().getFullYear()} PresencePro. All rights reserved.<br>
-                            Automated message — please do not reply.
+                            &copy; ${new Date().getFullYear()} PresencePro. All rights reserved.
                           </p>
                         </td>
                       </tr>
@@ -222,10 +222,12 @@ const LoginUser = async (req, res) => {
 
         // Step 4: Send email
         await brevo.transactionalEmails.sendTransacEmail(emailData);
-
         console.log("OTP email sent to:", tryingToLoginUser.email);
+
+        // Explicit return prevents moving down into standard success token generation blocks
         return res.status(200).json({
-          message: "An OTP has been sent to your email for verification.",otp:true
+          message: "An OTP has been sent to your email for verification.",
+          otp: true,
         });
       } catch (err) {
         console.error("OTP send error:", err);
@@ -233,11 +235,13 @@ const LoginUser = async (req, res) => {
       }
     }
 
-    // Successful login: reset attempts
+    // ==========================================
+    // FULLY VERIFIED USER LOGGING IN SUCCESS
+    // ==========================================
     tryingToLoginUser.login_attempt = 3;
     await tryingToLoginUser.save();
 
-    // Generate JWT
+    // Generate JWT Token
     const token = jwt.sign(
       {
         id: tryingToLoginUser._id,
@@ -254,7 +258,7 @@ const LoginUser = async (req, res) => {
       { expiresIn: process.env.EXPIRES_IN },
     );
 
-    // Safe user object
+    // Safe user payload profile configuration matrix
     const safe_user = {
       id: tryingToLoginUser._id,
       username: tryingToLoginUser.username,
@@ -264,7 +268,7 @@ const LoginUser = async (req, res) => {
       hasChangedPassword: tryingToLoginUser.hasChangedPassword,
       org: tryingToLoginUser.org,
       avatarUrl: tryingToLoginUser.avatarUrl,
-      isVerified:tryingToLoginUser.isVerified
+      isVerified: tryingToLoginUser.isVerified,
     };
 
     return res.status(200).json({
@@ -273,8 +277,10 @@ const LoginUser = async (req, res) => {
       token,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Something went wrong while logging in" });
+    console.error("Critical login controller breakdown error:", err);
+    return res
+      .status(500)
+      .json({ message: "Something went wrong while logging in" });
   }
 };
 
@@ -284,11 +290,13 @@ const verifyVerificationToken = async (req, res) => {
     const User = connections.Main.model("User", UserSchema);
     // Step 1: Find the user by email
     const user = await User.findOne({
-  $or: [{ email }, { username: email }]
-});
+      $or: [{ email }, { username: email }],
+    });
 
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     // Step 2: Check if OTP matches
@@ -333,17 +341,20 @@ const verifyVerificationToken = async (req, res) => {
       hasChangedPassword: user.hasChangedPassword,
       org: user.org,
       avatarUrl: user.avatarUrl,
-      isVerified:user.isVerified
+      isVerified: user.isVerified,
     };
 
-
-    return res.json({ success: true, message: "Account verified successfully!", token, safe_user});
+    return res.json({
+      success: true,
+      message: "Account verified successfully!",
+      token,
+      safe_user,
+    });
   } catch (err) {
     console.error("Verification error:", err);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
 
 const VerifyToken = async (req, res) => {
   try {
@@ -362,7 +373,7 @@ const VerifyToken = async (req, res) => {
       return res.status(404).json({ message: "Account not found" });
     }
 
-        if (!user.isVerified) {
+    if (!user.isVerified) {
       return res.status(403).json({ message: "Account not active" });
     }
 
@@ -386,7 +397,7 @@ const VerifyToken = async (req, res) => {
         username: user.username,
         org: user.org,
         avatarUrl: tryingToLoginUser.avatarUrl,
-        isVerified:tryingToLoginUser.isVerified
+        isVerified: tryingToLoginUser.isVerified,
       },
     });
   } catch (err) {
@@ -470,7 +481,6 @@ const deleteAdmin = async (req, res) => {
 };
 
 // Initialize Brevo client with the modern v4+ client architecture
-
 
 const passLink = async (req, res) => {
   try {
@@ -619,5 +629,5 @@ module.exports = {
   passLink,
   temp,
   VerifyToken,
-  verifyVerificationToken
+  verifyVerificationToken,
 };
