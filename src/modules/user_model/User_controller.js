@@ -355,36 +355,44 @@ const verifyVerificationToken = async (req, res) => {
 const VerifyToken = async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "No token provided" });
     }
 
     const token = authHeader.split(" ")[1];
+
+    // Decodes the token using your system secret
     const decoded = jwt.verify(token, process.env.JWT_SECRETE);
 
     const User = connections.Main.model("User", UserSchema);
     const user = await User.findById(decoded.id);
 
+    // 1. Account exist check
     if (!user || user.isDeleted) {
       return res.status(404).json({ message: "Account not found" });
     }
 
+    // 2. Verified account check
     if (!user.isVerified) {
       return res.status(403).json({ message: "Account not active" });
     }
 
+    // 3. Blocked state verification checks
     if (user.disabled && !["Admin", "Manager", "Staff"].includes(user.role)) {
       return res.status(403).json({ message: "Your account was blocked" });
     }
 
+    // 4. Admin approval gate check
     if (!user.verifiedByAdmin) {
       return res
         .status(403)
         .json({ message: "Your account has not yet been verified" });
     }
 
+    // FIX: Swapped out broken "tryingToLoginUser" variables for the correct "user" object reference
     return res.status(200).json({
       message: "Token valid",
+      token, // Returning the token keeps your onboarding sync routine functional
       safe_user: {
         id: user._id,
         name: user.name,
@@ -392,11 +400,12 @@ const VerifyToken = async (req, res) => {
         role: user.role,
         username: user.username,
         org: user.org,
-        avatarUrl: tryingToLoginUser.avatarUrl,
-        isVerified: tryingToLoginUser.isVerified,
+        avatarUrl: user.avatarUrl,
+        isVerified: user.isVerified,
       },
     });
   } catch (err) {
+    console.error("Token verification exception reached:", err.message);
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
