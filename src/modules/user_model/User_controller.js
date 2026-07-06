@@ -91,7 +91,7 @@ const LoginUser = async (req, res) => {
     });
 
     if (!tryingToLoginUser) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: "Invalid credentials" });
     }
 
     // Deleted account check first
@@ -140,7 +140,7 @@ const LoginUser = async (req, res) => {
     // ==========================================
 
     // OTP verification flow for unverified users
-    if (tryingToLoginUser.isVerified) {
+    if (!tryingToLoginUser.isVerified) {
       try {
         // Step 1: Generate a secure 6-digit OTP string
         const otpCode = crypto.randomInt(100000, 999999).toString();

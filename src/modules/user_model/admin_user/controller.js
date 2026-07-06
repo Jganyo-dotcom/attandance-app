@@ -648,19 +648,29 @@ const sendWelcomeEmailToNewbies = async (req) => {
   // Helper function to handle the anti-spam delay
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const People = req.db.model("People", peopleSchema);
+  
+  // 1. Get today's date string (e.g., "2026-07-06")
   const todayDateString = new Date().toISOString().split("T")[0];
 
-  try {
-    console.log(`Starting background welcome email routine for date: ${todayDateString}`);
+  // 2. CRITICAL FIX: Explicitly define the mathematical range limits using const
+  const startDate = new Date(`${todayDateString}T00:00:00.000Z`);
+  const endDate = new Date(`${todayDateString}T23:59:59.999Z`);
 
+  try {
+    console.log(`Starting background welcome email routine for date boundaries: ${todayDateString}`);
+
+    // 3. Query native ISODate ranges safely (No more regex errors!)
     const newbies = await People.find({
       isNewMember: true,
-      dateJoined: { $regex: `^${todayDateString}` }
+      dateJoined: {
+        $gte: startDate,
+        $lte: endDate,
+      }
     });
 
     if (newbies.length === 0) {
       console.log("No new members found today to welcome via email.");
-      return; // Safe return out of background task (No res.status!)
+      return; // Safe exit from background execution task
     }
 
     let emailsSent = 0;
@@ -669,7 +679,7 @@ const sendWelcomeEmailToNewbies = async (req) => {
       const person = newbies[i];
 
       // Validate email format basic check
-      if (person.email && person.email.includes("@")) {
+    
         
         // Executing the universal function call safely
         await sendUniversalMail("Welcome_first_timers", {
@@ -680,7 +690,6 @@ const sendWelcomeEmailToNewbies = async (req) => {
         });
 
         emailsSent++;
-      }
 
       // High-performance index-based anti-spam delay gate
       if (i < newbies.length - 1) {
@@ -692,7 +701,7 @@ const sendWelcomeEmailToNewbies = async (req) => {
     console.log(`Completed process. ${emailsSent} welcome emails dispatched successfully.`);
     
   } catch (err) {
-    // Log the error inside your server console so you can trace it safely
+    // Log the error inside your server console safely
     console.error("Critical background welcome email processor error:", err.message);
   }
 };
