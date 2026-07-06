@@ -46,7 +46,9 @@ const sendUniversalMail = async (type, options) => {
 
   // Basic input validation guard
   if (!recipientEmail || !recipientEmail.includes("@")) {
-    throw new Error(`Invalid recipient email address provided: ${recipientEmail}`);
+     console.error(`[Mail Aborted] Cannot send email. Address is invalid: ${recipientEmail}`);
+    
+    return null; // 🚀 CRITICAL FIX: Explicitly returns and halts execution instantly!
   }
 
   let htmlContent = "";
