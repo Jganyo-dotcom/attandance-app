@@ -1,5 +1,9 @@
 const nodemailer = require("nodemailer");
 const { BrevoClient } = require("@getbrevo/brevo");
+const getOtpTemplate = require("../../EmailTemplates/VerificationEmail");
+const getWelcomeTemplate = require("../../EmailTemplates/welcomeNewComers");
+const forgetPasswordTemplate = require("../../EmailTemplates/forgetPasswordEmail");
+const getWeMissedUTemplate = require("../../EmailTemplates/NewComersEmail");
 const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
 
 // configure transporter (example: Gmail)
@@ -36,51 +40,44 @@ async function sendMail({ to, subject, text, html }) {
  * @returns {Promise<object>} - Returns Brevo's API success response
  */
 
-const sendUniversalMail = async (
-  recipientEmail,
-  recipientName,
-  customMessage,
-  subject = "We loved fellowshiping with you!",
-) => {
-  // Basic input validation guards
+const sendUniversalMail = async (type, options) => {
+  const { recipientEmail, recipientName, subject, otpCode, personOrg ,custome} = options;
+  const currentYear = new Date().getFullYear();
+
+  // Basic input validation guard
   if (!recipientEmail || !recipientEmail.includes("@")) {
-    throw new Error(
-      `Invalid recipient email address provided: ${recipientEmail}`,
-    );
+    throw new Error(`Invalid recipient email address provided: ${recipientEmail}`);
   }
 
-  // Constructing the email body wrapper
-  const emailHtml = `
-    <html>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-          ${customMessage}
-        </div>
-      </body>
-    </html>
-  `;
+  let htmlContent = "";
+
+  // Select template explicitly based on strict type indicator
+  if (type === "OTP") {
+    htmlContent = getOtpTemplate(recipientName, otpCode, currentYear);
+  } else if (type === "WE_MISSED_YOU") {
+    htmlContent = getWeMissedUTemplate(recipientName, currentYear, personOrg);
+  }else if (type === "Welcome_first_timers") {
+    htmlContent = getWelcomeTemplate(recipientName, currentYear, personOrg);
+  }
+  else if (type === "forgetPassword") {
+    htmlContent = forgetPasswordTemplate(custome, currentYear );
+  }else {
+    throw new Error(`Unknown email template type requested: ${type}`);
+  }
 
   try {
-    // FIX 1 & 2: Added "const data =" so data is defined, and structure parameters match the SDK expectations
     const data = await brevo.transactionalEmails.sendTransacEmail({
       to: [{ email: recipientEmail, name: recipientName }],
       sender: { email: "elikemjjames@gmail.com", name: "PresencePro" },
       subject: subject,
-      htmlContent: emailHtml,
+      htmlContent: htmlContent,
     });
 
-    console.log(
-      `Email successfully routed to ${recipientEmail}. Message ID:`,
-      data.messageId,
-    );
+    console.log(`Email [${type}] successfully routed to ${recipientEmail}. Message ID:`, data.messageId);
     return data;
   } catch (error) {
-    console.error(
-      `Failed to route universal mail to ${recipientEmail}:`,
-      error,
-    );
+    console.error(`Failed to route universal mail to ${recipientEmail}:`, error);
     throw error;
   }
 };
-
 module.exports = { sendMail, sendUniversalMail };

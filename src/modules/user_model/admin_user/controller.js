@@ -412,6 +412,9 @@ const closeSession = async (req, res) => {
     checkOnMissingNewbies(req).catch((err) =>
       console.error("Background email process error:", err),
     );
+    sendWelcomeEmailToNewbies(req).catch((err)=>
+    console.error("Background email process error:", err),
+    )
 
     return res.status(200).json({ message: "Session closed", closedSession });
   } catch (err) {
@@ -456,42 +459,14 @@ const checkOnMissingNewbies = async (req) => {
 
     // 4. Loop through them and send out your universal emails safely
     for (const person of missingPeopleDetails) {
-      if (person.email && person.email.includes("@")) {
-        // Custom heartfelt message checking in on them
-        const customMessage = `
-          <h2 style="color: #2c3e50; font-family: sans-serif;">Hi ${person.name}, ❤️</h2>
-          
-          <p style="font-size: 16px; color: #34495e; line-height: 1.6;">
-            We missed you at church today! Our service was beautiful, but it truly wasn't the same 
-            without your presence in fellowship with us. 
-          </p>
-          
-          <p style="font-size: 16px; color: #34495e; line-height: 1.6;">
-            We wanted to reach out and check in to make sure you are doing completely okay. We hope 
-            there is no problem at all, and that you are just having a restful, refreshing weekend. 
-          </p>
-          
-          <p style="font-size: 16px; color: #34495e; line-height: 1.6; font-weight: bold;">
-            Please know that you are deeply valued here. If you need prayers, support, or anything at all 
-            this week, do not hesitate to reach back out to us. 
-          </p>
-          
-          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-          
-          <p style="font-size: 14px; color: #7f8c8d; margin-bottom: 5px;">Sending you peace and love,${person.org}</p>
-          <p style="font-size: 16px; color: #2c3e50; font-weight: bold; margin-top: 0;">PresencePro</p>
-        `;
-
-        const emailSubject = "We missed you today! Checking in on you";
-
-        // Route using your established universal mail configuration function
-        await sendUniversalMail(
-          person.email,
-          person.name,
-          customMessage,
-          emailSubject,
-        );
-        counter++;
+         // We explicitly AWAIT here because this is a batch worker loop
+    await sendUniversalMail("WE_MISSED_YOU", {
+              recipientEmail: person.email,
+              recipientName: person.name,
+              subject: "WE MISSED YOU TODAY AT CHURCH",
+              personOrg: person.org
+            });
+                counter++;
 
         // Strict 5-second anti-spam delay gate
         if (
@@ -503,7 +478,6 @@ const checkOnMissingNewbies = async (req) => {
           );
           await delay(5000);
         }
-      }
     }
 
     console.log(
@@ -670,79 +644,59 @@ const createPerson = async (req, res) => {
   }
 };
 
-const sendWelcomeEmailToNewbies = async (req, res) => {
-  // Helper helper function to handle the precise delay
+const sendWelcomeEmailToNewbies = async (req) => {
+  // Helper function to handle the anti-spam delay
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const People = req.db.model("People", peopleSchema);
   const todayDateString = new Date().toISOString().split("T")[0];
 
   try {
+    console.log(`Starting background welcome email routine for date: ${todayDateString}`);
+
     const newbies = await People.find({
       isNewMember: true,
-      dateJoined: todayDateString,
+      dateJoined: { $regex: `^${todayDateString}` }
     });
 
     if (newbies.length === 0) {
-      return res.status(200).json({ message: "No new members found today." });
+      console.log("No new members found today to welcome via email.");
+      return; // Safe return out of background task (No res.status!)
     }
 
     let emailsSent = 0;
 
-    for (const person of newbies) {
-      // Validate that contact is actually an email address
-      if (person.contact && person.contact.includes("@")) {
-        // A warmer, more welcoming and heartfelt message payload
-        const msg = `
-          <h2 style="color: #2c3e50; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">Hello ${person.name}, ✨</h2>
-          
-          <p style="font-size: 16px; color: #34495e; line-height: 1.6;">
-            ${person.org} wants to take a quick moment to say a massive thank you for sharing your time with us today! 
-            It was an absolute joy and privilege to fellowship with you. Your presence brought a truly 
-            special warmth to our service, and we feel incredibly blessed that you chose to spend your day with us.
-          </p>
-          
-          <p style="font-size: 16px; color: #34495e; line-height: 1.6;">
-            We hope you felt right at home and experienced the depth of love and community we share here. 
-            You are always welcome in our family, and we are already looking forward to the next time we get 
-            to see your smiling face and share in fellowship together.
-          </p>
-          
-          <p style="font-size: 16px; color: #34495e; line-height: 1.6; font-weight: bold;">
-            May your week ahead be beautifully blessed, filled with peace, unmeasurable joy, and favor!
-          </p>
-          
-          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-          
-          <p style="font-size: 14px; color: #7f8c8d; margin-bottom: 5px;">With love and warmest regards from ${person.org},</p>
-          <p style="font-size: 16px; color: #2c3e50; font-weight: bold; margin-top: 0;">Your PresencePro🤝</p>
-        `;
+    for (let i = 0; i < newbies.length; i++) {
+      const person = newbies[i];
 
-        // Executing the universal function call
-        await sendUniversalMail(
-          person.email,
-          person.name,
-          msg,
-          "We loved fellowshiping with you!",
-        );
+      // Validate email format basic check
+      if (person.email && person.email.includes("@")) {
+        
+        // Executing the universal function call safely
+        await sendUniversalMail("Welcome_first_timers", {
+          recipientEmail: person.email,
+          recipientName: person.name,
+          subject: "We loved fellowshiping with you today!",
+          personOrg: person.org
+        });
+
         emailsSent++;
+      }
 
-        // 5-second anti-spam delay timer (skipped on the very last person to save time)
-        if (newbies.indexOf(person) !== newbies.length - 1) {
-          console.log(
-            `Waiting 5 seconds before routing next email to avoid spam flag hooks...`,
-          );
-          await delay(5000);
-        }
+      // High-performance index-based anti-spam delay gate
+      if (i < newbies.length - 1) {
+        console.log(`Waiting 5 seconds before routing next welcome email...`);
+        await delay(5000);
       }
     }
 
-    return res.status(200).json({
-      message: `Completed processing. ${emailsSent} automated daily welcome emails pushed out successfully.`,
-    });
+    console.log(`Completed process. ${emailsSent} welcome emails dispatched successfully.`);
+    
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    // Log the error inside your server console so you can trace it safely
+    console.error("Critical background welcome email processor error:", err.message);
   }
 };
+
 
 // Delete person by ID
 
