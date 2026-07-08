@@ -63,6 +63,8 @@ const {
 } = require("../../middlewares/role");
 const authmiddleware = require("../../middlewares/auth");
 const checkAccountStatus = require("../../middlewares/deletedAcounts");
+const { getPerfectAttendanceWinners, getEarlyBirdRewardWinners, getNewbieRetentionWinners } = require("./rewards/rewards");
+const { viewPerfectAttendanceLeaderboard, viewEarlyBirdLeaderboard, viewNewbieRetentionLeaderboard } = require("./rewards/clientRewardViewer");
 
 const router = express.Router();
 
@@ -331,5 +333,31 @@ router.get("/get-person/:id", authmiddleware, checkroleonAll, getpersonById);
 // manager
 router.get("/get-all-admins", authmiddleware, OnlyManager, getAdmins);
 router.post("/admin/create", authmiddleware, OnlyManager, createAdmin);
+
+
+
+
+////////////////////////////////////////////////
+///////////////////////////////////////////////
+//////////////////////////////////////////////
+/////////////////////////////////////////////
+////////////////////////////////////////////
+///////////////////////////////////////////
+//////////////////////////////////////////
+/////////////////////////////////////////
+router.get("/perfect-attendance/winners",authmiddleware, getPerfectAttendanceWinners)
+router.get("/early-birds/winners",authmiddleware, getEarlyBirdRewardWinners);
+router.get("/newbie-streaks/winners",authmiddleware, getNewbieRetentionWinners);
+////////////////////////////////////////////////
+///////////////////////////////////////////////
+//////////////////////////////////////////////
+/////////////////////////////////////////////
+////////////////////////////////////////////
+///////////////////////////////////////////
+//////////////////////////////////////////
+/////////////////////////////////////////
+router.get("/display/perfect-attendance", viewPerfectAttendanceLeaderboard);
+router.get("/display/early-birds", viewEarlyBirdLeaderboard);
+router.get("/display/newbie-streaks", viewNewbieRetentionLeaderboard);
 
 module.exports = router;
