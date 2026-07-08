@@ -140,7 +140,7 @@ const LoginUser = async (req, res) => {
     // ==========================================
 
     // OTP verification flow for unverified users
-    if (tryingToLoginUser.isVerified) {
+    if (!tryingToLoginUser.isVerified) {
       return
       try {
         // Step 1: Generate a secure 6-digit OTP string
