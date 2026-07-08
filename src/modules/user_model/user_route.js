@@ -359,5 +359,27 @@ router.get("/newbie-streaks/winners",authmiddleware, getNewbieRetentionWinners);
 router.get("/display/perfect-attendance", viewPerfectAttendanceLeaderboard);
 router.get("/display/early-birds", viewEarlyBirdLeaderboard);
 router.get("/display/newbie-streaks", viewNewbieRetentionLeaderboard);
+////////////////////////////////////////////////
+///////////////////////////////////////////////
+//////////////////////////////////////////////
+/////////////////////////////////////////////
+////////////////////////////////////////////
+///////////////////////////////////////////
+//////////////////////////////////////////
+/////////////////////////////////////////
 
+// Initialize the 6-digit passcode for the very first time (Protected by a strict guard clause)
+// router.post("/passkey/create", createInitialOrganizationPasskey);
+
+// Validate entered code strings against stored bcrypt hashes with automated lockout protection
+// router.post("/passkey/verify", verifyOrganizationPasskey);
+
+// Modify active security codes for logged-in church administrators
+// router.put("/passkey/change", changeOrganizationPasskey);
+
+// Generate single-use recovery tokens and trigger Brevo transactional mail delivery
+// router.post("/passkey/forgot", forgotOrganizationPasskey);
+
+// Consume active reset tokens to safely overwrite organization credentials
+// router.post("/passkey/reset", resetOrganizationPasskey);
 module.exports = router;

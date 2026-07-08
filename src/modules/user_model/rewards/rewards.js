@@ -2,6 +2,8 @@
 const Session = require("../../../models/session")
 const People = require("../../../models/People")
 const Attendance = require("../../../models/attendance")
+const bcrypt = require("bcrypt");
+const {OrgSchemaForPasskey} = require("../../../models/org"); // Adjust path
 const {
   perfectAttendanceLeaderboardSchema,
   earlyBirdLeaderboardSchema,
@@ -243,4 +245,263 @@ const getNewbieRetentionWinners = async (req, res) => {
 };
 
 
-module.exports = {getPerfectAttendanceWinners,getEarlyBirdRewardWinners,getNewbieRetentionWinners}
+// =========================================================================
+// 0. INITIAL CREATE PASSKEY (For First-Time Setup Only)
+// =========================================================================
+const createInitialOrganizationPasskey = async (req, res) => {
+  try {
+    const OrgPasskeyModel = req.db.model("OrgPasskey", OrgSchemaForPasskey);
+    const { accessCode } = req.body;
+    const orgName = req.user.org; // Securely fetched from JWT auth state context
+
+    // 1. Validation for essential inputs
+    if (!orgName) {
+      return res.status(400).json({ message: "User organization context is missing" });
+    }
+
+    if (!accessCode) {
+      return res.status(400).json({ message: "Access code is required for initial setup" });
+    }
+
+    if (accessCode.length !== 6) {
+      return res.status(400).json({ message: "The access code must be exactly 6 characters long" });
+    }
+
+    // 2. Guard Clause: Block request if a passkey record already exists for this church
+    const thatOrg = await OrgPasskeyModel.findOne({ org: orgName });
+
+    if (thatOrg && thatOrg.accessCode) {
+      return res.status(400).json({ 
+        message: "Code has already been set for this organization. If you want to change it, use the change passkey route." 
+      });
+    }
+
+    // 3. Hash the first-time passkey securely using bcrypt
+    const saltRounds = 10;
+    const hashedAccessCode = await bcrypt.hash(accessCode, saltRounds);
+
+    // 4. Save the document configuration to the collection
+    const newOrgPasskey = new OrgPasskeyModel({
+      org: orgName,
+      accessCode: hashedAccessCode,
+      failedAttempts: 0,
+      lockoutUntil: null
+    });
+
+    await newOrgPasskey.save();
+
+    return res.status(201).json({
+      message: `Passkey successfully initialized and locked for organization: ${orgName}`
+    });
+
+  } catch (err) {
+    console.error("Create Passkey Error:", err);
+    return res.status(500).json({ message: "Internal server error initializing organization passkey" });
+  }
+};
+
+
+// const bcrypt = require("bcrypt");
+// const crypto = require("crypto");
+// const brevo = require("@getbrevo/brevo"); // Official Brevo modern SDK package
+// const OrgSchemaForPasskey = require("../models/OrgSchemaForPasskey");
+
+// // Configure the transactional email client for Brevo
+// const apiInstance = new brevo.TransactionalEmailsApi();
+// apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY); // Stored inside .env file
+
+// // LOCKOUT THRESHOLDS
+// const MAX_FAILED_ATTEMPTS = 5;
+// const LOCKOUT_DURATION_MINUTES = 15;
+
+
+// // =========================================================================
+// // 1. VERIFY PASSKEY (With Intelligent Account Lockout System)
+// // =========================================================================
+// const verifyOrganizationPasskey = async (req, res) => {
+//   try {
+//     const OrgPasskeyModel = req.db.model("OrgPasskey", OrgSchemaForPasskey);
+//     const { accessCode } = req.body;
+//     const orgName = req.user.org;
+
+//     const thatOrg = await OrgPasskeyModel.findOne({ org: orgName });
+//     if (!thatOrg) return res.status(404).json({ message: "Organization not found" });
+
+//     // Check if account is currently locked out
+//     if (thatOrg.lockoutUntil && thatOrg.lockoutUntil > new Date()) {
+//       const remainingMinutes = Math.ceil((thatOrg.lockoutUntil - new Date()) / 60000);
+//       return res.status(403).json({ 
+//         message: `This account is locked due to multiple failed entry attempts. Try again in ${remainingMinutes} minutes.` 
+//       });
+//     }
+
+//     // Compare code
+//     const isMatch = await bcrypt.compare(accessCode, thatOrg.accessCode);
+
+//     if (!isMatch) {
+//       // Increment failures
+//       thatOrg.failedAttempts += 1;
+
+//       if (thatOrg.failedAttempts >= MAX_FAILED_ATTEMPTS) {
+//         thatOrg.lockoutUntil = new Date(Date.now() + LOCKOUT_DURATION_MINUTES * 60000);
+//         thatOrg.failedAttempts = 0; // Reset counter for post-lockout cycle
+//         await thatOrg.save();
+//         return res.status(403).json({ message: "Security threshold breached. Account locked out for 15 minutes." });
+//       }
+
+//       await thatOrg.save();
+//       return res.status(401).json({ message: "Invalid passkey code string.", attemptsRemaining: MAX_FAILED_ATTEMPTS - thatOrg.failedAttempts });
+//     }
+
+//     // Success: Reset tracking counters
+//     thatOrg.failedAttempts = 0;
+//     thatOrg.lockoutUntil = null;
+//     await thatOrg.save();
+
+//     return res.status(200).json({ message: "Passkey verification verified successfully!" });
+
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ message: "Internal verification error" });
+//   }
+// };
+
+
+// // =========================================================================
+// // 2. CHANGE PASSKEY (For Active Logged-In Authorized Admins)
+// // =========================================================================
+// const changeOrganizationPasskey = async (req, res) => {
+//   try {
+//     const OrgPasskeyModel = req.db.model("OrgPasskey", OrgSchemaForPasskey);
+//     const { oldAccessCode, newAccessCode } = req.body;
+//     const orgName = req.user.org;
+
+//     if (!oldAccessCode || !newAccessCode || newAccessCode.length !== 6) {
+//       return res.status(400).json({ message: "Please supply a valid old code and a new 6-character code" });
+//     }
+
+//     const thatOrg = await OrgPasskeyModel.findOne({ org: orgName });
+//     if (!thatOrg) return res.status(404).json({ message: "Organization not found" });
+
+//     // Validate past passcode authority
+//     const isValid = await bcrypt.compare(oldAccessCode, thatOrg.accessCode);
+//     if (!isValid) return res.status(401).json({ message: "Your current passkey is incorrect" });
+
+//     // Hash and store the updated passcode mapping
+//     thatOrg.accessCode = await bcrypt.hash(newAccessCode, 10);
+//     await thatOrg.save();
+
+//     return res.status(200).json({ message: "Organization passkey updated successfully!" });
+
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ message: "Internal server error modifying passcode" });
+//   }
+// };
+
+
+// // =========================================================================
+// // 3. FORGOT PASSKEY (Generates Token & Fires Brevo Transmission Transaction)
+// // =========================================================================
+// const forgotOrganizationPasskey = async (req, res) => {
+//   try {
+//     const OrgPasskeyModel = req.db.model("OrgPasskey", OrgSchemaForPasskey);
+//     const { email } = req.body; 
+//     const orgName = req.user.org; // Pull secure contextual state
+
+//     const thatOrg = await OrgPasskeyModel.findOne({ org: orgName });
+//     if (!thatOrg) return res.status(404).json({ message: "Organization data link mismatch" });
+
+//     // Generate unhashed random crypto-token to deliver to the mail inbox
+//     const resetToken = crypto.randomBytes(32).toString("hex");
+
+//     // Securely cache the token value as a hash in database storage
+//     thatOrg.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+//     thatOrg.resetPasswordExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // Token valid for 1 hour
+//     await thatOrg.save();
+
+//     // Construct target reset link address
+//     const resetUrl = `https://yourdomain.com{resetToken}`;
+
+//     // Execute Brevo Transaction API Request
+//     const sendSmtpEmail = new brevo.SendSmtpEmail();
+//     sendSmtpEmail.subject = "Reset Your Organization Passkey";
+//     sendSmtpEmail.htmlContent = `
+//       <h3>Passkey Reset Request</h3>
+//       <p>Click the link below to configure a new authorization passkey for your organization dashboard.</p>
+//       <a href="${resetUrl}" target="_blank">${resetUrl}</a>
+//       <p>This confirmation link expires in 60 minutes.</p>
+//     `;
+//     sendSmtpEmail.sender = { name: "Church Tech Admin", email: "admin@yourchurch.com" }; // Must be a verified Brevo identity sender
+//     sendSmtpEmail.to = [{ email: email }];
+
+//     await apiInstance.sendTransacEmail(sendSmtpEmail);
+
+//     return res.status(200).json({ message: "Recovery email successfully sent via Brevo network" });
+
+//   } catch (err) {
+//     console.error("Brevo Email Sending Error:", err);
+//     return res.status(500).json({ message: "Error initiating forgot password flow" });
+//   }
+// };
+
+
+// // =========================================================================
+// // 4. RESET PASSKEY (Consumes Token & Completes Update)
+// // =========================================================================
+// const resetOrganizationPasskey = async (req, res) => {
+//   try {
+//     const OrgPasskeyModel = req.db.model("OrgPasskey", OrgSchemaForPasskey);
+//     const { token, newAccessCode } = req.body;
+
+//     if (!token || !newAccessCode || newAccessCode.length !== 6) {
+//       return res.status(400).json({ message: "Token and valid 6-digit access code are required" });
+//     }
+
+//     // Hash incoming URL query token string to find its match inside DB logs
+//     const encryptedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+//     const thatOrg = await OrgPasskeyModel.findOne({
+//       resetPasswordToken: encryptedToken,
+//       resetPasswordExpiresAt: { $gt: new Date() } // Must be larger than present time clock
+//     });
+
+//     if (!thatOrg) return res.status(400).json({ message: "Reset token is invalid or has expired." });
+
+//     // Commit new access token securely
+//     thatOrg.accessCode = await bcrypt.hash(newAccessCode, 10);
+    
+//     // Purge single-use token entries from tracking document block
+//     thatOrg.resetPasswordToken = null;
+//     thatOrg.resetPasswordExpiresAt = null;
+//     thatOrg.failedAttempts = 0; // Release locks if applicable
+//     thatOrg.lockoutUntil = null;
+    
+//     await thatOrg.save();
+
+//     return res.status(200).json({ message: "Passkey reset successfully. You can now use your new code." });
+
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ message: "Error processing security token swap" });
+//   }
+// };
+
+
+// module.exports = {
+//   verifyOrganizationPasskey,
+//   changeOrganizationPasskey,
+//   forgotOrganizationPasskey,
+//   resetOrganizationPasskey
+// };
+
+
+
+
+
+
+
+
+
+
+module.exports = {getPerfectAttendanceWinners,getEarlyBirdRewardWinners,getNewbieRetentionWinners,}

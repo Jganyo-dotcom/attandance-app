@@ -20,10 +20,11 @@ const { connectDatabases } = require("../../config/db");
 // }
 
 // Runs exactly at 00:00 (Midnight) every single day
-cron.schedule("30 11 * * *", async () => { 
-  console.log("Running scheduled 11:30 AM birthday email job..."); 
+cron.schedule("5 0 * * *", async () => { 
+  console.log("Running scheduled 12:05 AM birthday email job..."); 
   await sendBirthdayEmails(); 
 });
+
 
 
 // start();
