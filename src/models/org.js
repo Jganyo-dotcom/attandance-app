@@ -10,8 +10,6 @@ const OrgSchema = new mongoose.Schema(
 );
 
 
-const mongoose = require("mongoose");
-
 const OrgSchemaForPasskey = new mongoose.Schema(
   {
     org: { type: String, required: true },
