@@ -1,5 +1,5 @@
 const peopleSchema = require("../models/People");
-const OrgSchema = require("../models/org");
+const {OrgSchema} = require("../models/org");
 const { connections } = require("../config/db");
 
 const guestgetAllPersons = async (req, res) => {
