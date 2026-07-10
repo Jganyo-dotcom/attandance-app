@@ -4,7 +4,7 @@ const sessionSchema = require("../../../models/session");
 const UserSchema = require("../../../models/user.model");
 const { connections } = require("../../../config/db");
 const mongoose = require("mongoose");
-const OrgSchema = require("../../../models/org"); // separate Org schema
+const { OrgSchema } = require("../../../models/org"); // separate Org schema
 const QRCode = require("qrcode");
 const crypto = require("crypto");
 const {
@@ -412,9 +412,9 @@ const closeSession = async (req, res) => {
     checkOnMissingNewbies(req).catch((err) =>
       console.error("Background email process error:", err),
     );
-    sendWelcomeEmailToNewbies(req).catch((err)=>
-    console.error("Background email process error:", err),
-    )
+    sendWelcomeEmailToNewbies(req).catch((err) =>
+      console.error("Background email process error:", err),
+    );
 
     return res.status(200).json({ message: "Session closed", closedSession });
   } catch (err) {
@@ -459,25 +459,25 @@ const checkOnMissingNewbies = async (req) => {
 
     // 4. Loop through them and send out your universal emails safely
     for (const person of missingPeopleDetails) {
-         // We explicitly AWAIT here because this is a batch worker loop
-    await sendUniversalMail("WE_MISSED_YOU", {
-              recipientEmail: person.email,
-              recipientName: person.name,
-              subject: "WE MISSED YOU TODAY AT CHURCH",
-              personOrg: person.org
-            });
-                counter++;
+      // We explicitly AWAIT here because this is a batch worker loop
+      await sendUniversalMail("WE_MISSED_YOU", {
+        recipientEmail: person.email,
+        recipientName: person.name,
+        subject: "WE MISSED YOU TODAY AT CHURCH",
+        personOrg: person.org,
+      });
+      counter++;
 
-        // Strict 5-second anti-spam delay gate
-        if (
-          missingPeopleDetails.indexOf(person) !==
-          missingPeopleDetails.length - 1
-        ) {
-          console.log(
-            "Anti-Spam Delay: Waiting 5 seconds before checking on the next person...",
-          );
-          await delay(5000);
-        }
+      // Strict 5-second anti-spam delay gate
+      if (
+        missingPeopleDetails.indexOf(person) !==
+        missingPeopleDetails.length - 1
+      ) {
+        console.log(
+          "Anti-Spam Delay: Waiting 5 seconds before checking on the next person...",
+        );
+        await delay(5000);
+      }
     }
 
     console.log(
@@ -648,7 +648,7 @@ const sendWelcomeEmailToNewbies = async (req) => {
   // Helper function to handle the anti-spam delay
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const People = req.db.model("People", peopleSchema);
-  
+
   // 1. Get today's date string (e.g., "2026-07-06")
   const todayDateString = new Date().toISOString().split("T")[0];
 
@@ -657,7 +657,9 @@ const sendWelcomeEmailToNewbies = async (req) => {
   const endDate = new Date(`${todayDateString}T23:59:59.999Z`);
 
   try {
-    console.log(`Starting background welcome email routine for date boundaries: ${todayDateString}`);
+    console.log(
+      `Starting background welcome email routine for date boundaries: ${todayDateString}`,
+    );
 
     // 3. Query native ISODate ranges safely (No more regex errors!)
     const newbies = await People.find({
@@ -665,7 +667,7 @@ const sendWelcomeEmailToNewbies = async (req) => {
       dateJoined: {
         $gte: startDate,
         $lte: endDate,
-      }
+      },
     });
 
     if (newbies.length === 0) {
@@ -679,17 +681,16 @@ const sendWelcomeEmailToNewbies = async (req) => {
       const person = newbies[i];
 
       // Validate email format basic check
-    
-        
-        // Executing the universal function call safely
-        await sendUniversalMail("Welcome_first_timers", {
-          recipientEmail: person.email,
-          recipientName: person.name,
-          subject: "We loved fellowshiping with you today!",
-          personOrg: person.org
-        });
 
-        emailsSent++;
+      // Executing the universal function call safely
+      await sendUniversalMail("Welcome_first_timers", {
+        recipientEmail: person.email,
+        recipientName: person.name,
+        subject: "We loved fellowshiping with you today!",
+        personOrg: person.org,
+      });
+
+      emailsSent++;
 
       // High-performance index-based anti-spam delay gate
       if (i < newbies.length - 1) {
@@ -698,14 +699,17 @@ const sendWelcomeEmailToNewbies = async (req) => {
       }
     }
 
-    console.log(`Completed process. ${emailsSent} welcome emails dispatched successfully.`);
-    
+    console.log(
+      `Completed process. ${emailsSent} welcome emails dispatched successfully.`,
+    );
   } catch (err) {
     // Log the error inside your server console safely
-    console.error("Critical background welcome email processor error:", err.message);
+    console.error(
+      "Critical background welcome email processor error:",
+      err.message,
+    );
   }
 };
-
 
 // Delete person by ID
 
