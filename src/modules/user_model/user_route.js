@@ -63,8 +63,19 @@ const {
 } = require("../../middlewares/role");
 const authmiddleware = require("../../middlewares/auth");
 const checkAccountStatus = require("../../middlewares/deletedAcounts");
-const { getPerfectAttendanceWinners, getEarlyBirdRewardWinners, getNewbieRetentionWinners } = require("./rewards/rewards");
-const { viewPerfectAttendanceLeaderboard, viewEarlyBirdLeaderboard, viewNewbieRetentionLeaderboard } = require("./rewards/clientRewardViewer");
+const {
+  getPerfectAttendanceWinners,
+  getEarlyBirdRewardWinners,
+  getNewbieRetentionWinners,
+  getPasskeyStatus,
+  createInitialOrganizationPasskey,
+  verifyOrganizationPasskey
+} = require("./rewards/rewards");
+const {
+  viewPerfectAttendanceLeaderboard,
+  viewEarlyBirdLeaderboard,
+  viewNewbieRetentionLeaderboard,
+} = require("./rewards/clientRewardViewer");
 
 const router = express.Router();
 
@@ -334,9 +345,6 @@ router.get("/get-person/:id", authmiddleware, checkroleonAll, getpersonById);
 router.get("/get-all-admins", authmiddleware, OnlyManager, getAdmins);
 router.post("/admin/create", authmiddleware, OnlyManager, createAdmin);
 
-
-
-
 ////////////////////////////////////////////////
 ///////////////////////////////////////////////
 //////////////////////////////////////////////
@@ -345,9 +353,21 @@ router.post("/admin/create", authmiddleware, OnlyManager, createAdmin);
 ///////////////////////////////////////////
 //////////////////////////////////////////
 /////////////////////////////////////////
-router.get("/perfect-attendance/winners",authmiddleware, getPerfectAttendanceWinners)
-router.get("/early-birds/winners",authmiddleware, getEarlyBirdRewardWinners);
-router.get("/newbie-streaks/winners",authmiddleware, getNewbieRetentionWinners);
+router.get(
+  "/admin/rewards/perfect-attendance",
+  authmiddleware,
+  getPerfectAttendanceWinners,
+);
+router.get(
+  "/admin/rewards/early-birds",
+  authmiddleware,
+  getEarlyBirdRewardWinners,
+);
+router.get(
+  "/newbie-streaks/winners",
+  authmiddleware,
+  getNewbieRetentionWinners,
+);
 ////////////////////////////////////////////////
 ///////////////////////////////////////////////
 //////////////////////////////////////////////
@@ -369,10 +389,10 @@ router.get("/display/newbie-streaks", viewNewbieRetentionLeaderboard);
 /////////////////////////////////////////
 
 // Initialize the 6-digit passcode for the very first time (Protected by a strict guard clause)
-// router.post("/passkey/create", createInitialOrganizationPasskey);
+router.post("/passkey/create",authmiddleware, createInitialOrganizationPasskey);
 
 // Validate entered code strings against stored bcrypt hashes with automated lockout protection
-// router.post("/passkey/verify", verifyOrganizationPasskey);
+router.post("/passkey/verify",authmiddleware, verifyOrganizationPasskey);
 
 // Modify active security codes for logged-in church administrators
 // router.put("/passkey/change", changeOrganizationPasskey);
@@ -382,4 +402,7 @@ router.get("/display/newbie-streaks", viewNewbieRetentionLeaderboard);
 
 // Consume active reset tokens to safely overwrite organization credentials
 // router.post("/passkey/reset", resetOrganizationPasskey);
+
+// Consume active reset tokens to safely overwrite organization credentials
+router.get("/passkey/status", authmiddleware, getPasskeyStatus);
 module.exports = router;

@@ -1,6 +1,6 @@
-const Session = require("../../../models/session");
-const People = require("../../../models/People");
-const Attendance = require("../../../models/attendance");
+const sessionSchema = require("../../../models/session");
+const peopleSchema = require("../../../models/People");
+const attendanceSchema = require("../../../models/attendance");
 const bcrypt = require("bcrypt");
 const { OrgSchemaForPasskey } = require("../../../models/org"); // Adjust path
 const {
@@ -357,7 +357,7 @@ const createInitialOrganizationPasskey = async (req, res) => {
 };
 
 // Configure the transactional email client for Brevo
- // Stored inside .env file
+// Stored inside .env file
 
 // LOCKOUT THRESHOLDS
 const MAX_FAILED_ATTEMPTS = 5;
@@ -468,7 +468,7 @@ const changeOrganizationPasskey = async (req, res) => {
 };
 
 // =========================================================================
-// 3. FORGOT PASSKEY (Generates Token 
+// 3. FORGOT PASSKEY (Generates Token
 // =========================================================================
 
 const forgotOrganizationPasskey = async (req, res) => {
@@ -503,9 +503,7 @@ const forgotOrganizationPasskey = async (req, res) => {
     // FIXED: Corrected path interpolation construction rules
     const resetUrl = `https://yourdomain.com{resetToken}`;
 
-
     // Premium, mobile-responsive clean email template execution
-    
 
     sendSmtpEmail.sender = {
       name: "Church Tech Admin",
@@ -580,6 +578,39 @@ const resetOrganizationPasskey = async (req, res) => {
   }
 };
 
+// =========================================================================
+// CHECK PASSKEY SETUP STATUS
+// =========================================================================
+const getPasskeyStatus = async (req, res) => {
+  try {
+    console.log("Checking passkey configuration status...");
+    const OrgPasskeyModel =
+      req.db.models.OrgPasskey ||
+      req.db.model("OrgPasskey", OrgSchemaForPasskey);
+    const orgName = req.user.org;
+
+    const thatOrg = await OrgPasskeyModel.findOne({ org: orgName });
+
+    // Check if accessCode exists and is non-empty
+    const isConfigured = Boolean(thatOrg && thatOrg.accessCode);
+
+    if (isConfigured) {
+      return res.status(400).json({
+        configured: true,
+        message: "Passkey has already been set for this organization.",
+      });
+    }
+
+    return res.status(200).json({
+      configured: false,
+      message: "No passkey configured. Setup is required.",
+    });
+  } catch (err) {
+    console.error("Error checking passkey status:", err);
+    return res.status(500).json({ message: "Error retrieving passkey status" });
+  }
+};
+
 module.exports = {
   getPerfectAttendanceWinners,
   getEarlyBirdRewardWinners,
@@ -588,4 +619,6 @@ module.exports = {
   changeOrganizationPasskey,
   forgotOrganizationPasskey,
   resetOrganizationPasskey,
+  createInitialOrganizationPasskey,
+  getPasskeyStatus,
 };
