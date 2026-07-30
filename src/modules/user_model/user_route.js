@@ -69,7 +69,10 @@ const {
   getNewbieRetentionWinners,
   getPasskeyStatus,
   createInitialOrganizationPasskey,
-  verifyOrganizationPasskey
+  verifyOrganizationPasskey,
+  changeOrganizationPasskey,
+  forgotOrganizationPasskey,
+  resetOrganizationPasskey
 } = require("./rewards/rewards");
 const {
   viewPerfectAttendanceLeaderboard,
@@ -395,13 +398,13 @@ router.post("/passkey/create",authmiddleware, createInitialOrganizationPasskey);
 router.post("/passkey/verify",authmiddleware, verifyOrganizationPasskey);
 
 // Modify active security codes for logged-in church administrators
-// router.put("/passkey/change", changeOrganizationPasskey);
+router.post("/passkey/change",authmiddleware, changeOrganizationPasskey);
 
 // Generate single-use recovery tokens and trigger Brevo transactional mail delivery
-// router.post("/passkey/forgot", forgotOrganizationPasskey);
+router.post("/passkey/forgot",authmiddleware, forgotOrganizationPasskey);
 
 // Consume active reset tokens to safely overwrite organization credentials
-// router.post("/passkey/reset", resetOrganizationPasskey);
+router.post("/passkey/reset",authmiddleware, resetOrganizationPasskey);
 
 // Consume active reset tokens to safely overwrite organization credentials
 router.get("/passkey/status", authmiddleware, getPasskeyStatus);

@@ -4,6 +4,7 @@ const getOtpTemplate = require("../../EmailTemplates/VerificationEmail");
 const getWelcomeTemplate = require("../../EmailTemplates/welcomeNewComers");
 const forgetPasswordTemplate = require("../../EmailTemplates/forgetPasswordEmail");
 const getWeMissedUTemplate = require("../../EmailTemplates/NewComersEmail");
+const forgotPasskeyTemplate = require("../../EmailTemplates/forgotpasskeyEmail");
 const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
 
 // configure transporter (example: Gmail)
@@ -41,13 +42,23 @@ async function sendMail({ to, subject, text, html }) {
  */
 
 const sendUniversalMail = async (type, options) => {
-  const { recipientEmail, recipientName, subject, otpCode, personOrg ,custome} = options;
+  const {
+    recipientEmail,
+    recipientName,
+    subject,
+    otpCode,
+    personOrg,
+    custome,
+    resetToken
+  } = options;
   const currentYear = new Date().getFullYear();
 
   // Basic input validation guard
   if (!recipientEmail || !recipientEmail.includes("@")) {
-     console.error(`[Mail Aborted] Cannot send email. Address is invalid: ${recipientEmail}`);
-    
+    console.error(
+      `[Mail Aborted] Cannot send email. Address is invalid: ${recipientEmail}`,
+    );
+
     return null; // 🚀 CRITICAL FIX: Explicitly returns and halts execution instantly!
   }
 
@@ -58,12 +69,13 @@ const sendUniversalMail = async (type, options) => {
     htmlContent = getOtpTemplate(recipientName, otpCode, currentYear);
   } else if (type === "WE_MISSED_YOU") {
     htmlContent = getWeMissedUTemplate(recipientName, currentYear, personOrg);
-  }else if (type === "Welcome_first_timers") {
+  } else if (type === "Welcome_first_timers") {
     htmlContent = getWelcomeTemplate(recipientName, currentYear, personOrg);
-  }
-  else if (type === "forgetPassword") {
-    htmlContent = forgetPasswordTemplate(custome, currentYear );
-  }else {
+  } else if (type === "forgetPassword") {
+    htmlContent = forgetPasswordTemplate(custome, currentYear);
+  } else if (type === "FORGOT_PASSKEY") {
+    htmlContent = forgotPasskeyTemplate(resetToken, currentYear, personOrg);
+  } else {
     throw new Error(`Unknown email template type requested: ${type}`);
   }
 
@@ -75,10 +87,16 @@ const sendUniversalMail = async (type, options) => {
       htmlContent: htmlContent,
     });
 
-    console.log(`Email [${type}] successfully routed to ${recipientEmail}. Message ID:`, data.messageId);
+    console.log(
+      `Email [${type}] successfully routed to ${recipientEmail}. Message ID:`,
+      data.messageId,
+    );
     return data;
   } catch (error) {
-    console.error(`Failed to route universal mail to ${recipientEmail}:`, error);
+    console.error(
+      `Failed to route universal mail to ${recipientEmail}:`,
+      error,
+    );
     throw error;
   }
 };

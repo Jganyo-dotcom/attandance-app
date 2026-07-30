@@ -1,7 +1,9 @@
 const sessionSchema = require("../../../models/session");
 const peopleSchema = require("../../../models/People");
 const attendanceSchema = require("../../../models/attendance");
+const { connections } = require("../../../config/db");
 const bcrypt = require("bcrypt");
+const UserSchema = require("../../../models/user.model");
 const { OrgSchemaForPasskey } = require("../../../models/org"); // Adjust path
 const {
   perfectAttendanceLeaderboardSchema,
@@ -9,6 +11,7 @@ const {
   newbieRetentionLeaderboardSchema,
 } = require("../../../models/rewards");
 const crypto = require("crypto");
+const { sendUniversalMail } = require("../../../models/utils/email");
 
 // Helper to convert time strings (like "08:30 AM", "2:15 PM", or "14:00") into minutes from midnight
 
@@ -473,13 +476,19 @@ const changeOrganizationPasskey = async (req, res) => {
 
 const forgotOrganizationPasskey = async (req, res) => {
   try {
-    // SAFE CHECK: Prevents OverwriteModelError crashes on frequent hits
+    const { email } = req.body;
+    const orgName = req.user.org;
+    const User = connections.Main.model("User", UserSchema);
+    const thatUser = await User.findOne({ email: email });
+    if (!thatUser) {
+      return res
+        .status(200)
+        .json({ message: "A reset link has been sent to your mail" });
+    }
+    // Prevent OverwriteModelError crashes on dynamic multi-tenant routes
     const OrgPasskeyModel =
       req.db.models.OrgPasskey ||
       req.db.model("OrgPasskey", OrgSchemaForPasskey);
-
-    const { email } = req.body;
-    const orgName = req.user.org; // Pull secure contextual state validation from token
 
     const thatOrg = await OrgPasskeyModel.findOne({ org: orgName });
     if (!thatOrg) {
@@ -488,7 +497,7 @@ const forgotOrganizationPasskey = async (req, res) => {
         .json({ message: "Organization data link mismatch" });
     }
 
-    // Generate secure random crypto-token to deliver to the mail inbox
+    // Generate secure random crypto token to be copied by the user
     const resetToken = crypto.randomBytes(32).toString("hex");
 
     // Securely cache the token value as a hash in database storage
@@ -497,21 +506,17 @@ const forgotOrganizationPasskey = async (req, res) => {
       .update(resetToken)
       .digest("hex");
 
-    thatOrg.resetPasswordExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour token duration
+    thatOrg.resetPasswordExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1-hour expiration
     await thatOrg.save();
 
-    // FIXED: Corrected path interpolation construction rules
-    const resetUrl = `https://yourdomain.com{resetToken}`;
-
-    // Premium, mobile-responsive clean email template execution
-
-    sendSmtpEmail.sender = {
-      name: "Church Tech Admin",
-      email: "admin@yourchurch.com", // Ensure this identity is completely verified inside Brevo dashboard setups
-    };
-    sendSmtpEmail.to = [{ email: email }];
-
-    await apiInstance.sendTransacEmail(sendSmtpEmail);
+    // Dispatch raw reset token via Brevo universal mail service
+    sendUniversalMail("FORGOT_PASSKEY", {
+      recipientEmail: email,
+      recipientName: "Admin",
+      subject: `Passkey Recovery Code - ${orgName}`,
+      personOrg: orgName,
+      resetToken: resetToken, // Raw token delivered directly to the user's inbox
+    });
 
     return res.status(200).json({
       message:
@@ -531,50 +536,58 @@ const forgotOrganizationPasskey = async (req, res) => {
 // =========================================================================
 const resetOrganizationPasskey = async (req, res) => {
   try {
-    const OrgPasskeyModel = req.db.model("OrgPasskey", OrgSchemaForPasskey);
+    // SAFE CHECK: Prevents OverwriteModelError crashes on dynamic connection loads
+    const OrgPasskeyModel =
+      req.db.models.OrgPasskey ||
+      req.db.model("OrgPasskey", OrgSchemaForPasskey);
+
     const { token, newAccessCode } = req.body;
 
-    if (!token || !newAccessCode || newAccessCode.length !== 6) {
-      return res
-        .status(400)
-        .json({ message: "Token and valid 6-digit access code are required" });
+    // Validate token payload presence and ensure exact 6-digit numeric passkey format
+    if (!token || !newAccessCode || !/^\d{6}$/.test(newAccessCode)) {
+      return res.status(400).json({
+        message: "Token and a valid 6-digit numeric access code are required.",
+      });
     }
 
-    // Hash incoming URL query token string to find its match inside DB logs
-    const encryptedToken = crypto
+    // Hash the raw token string submitted by the user to match against the stored SHA-256 hash
+    const hashedToken = crypto
       .createHash("sha256")
-      .update(token)
+      .update(token.trim())
       .digest("hex");
 
+    // Retrieve organization document matching the active, non-expired token
     const thatOrg = await OrgPasskeyModel.findOne({
-      resetPasswordToken: encryptedToken,
-      resetPasswordExpiresAt: { $gt: new Date() }, // Must be larger than present time clock
+      resetPasswordToken: hashedToken,
+      resetPasswordExpiresAt: { $gt: new Date() }, // Must be within valid expiration window
     });
 
-    if (!thatOrg)
-      return res
-        .status(400)
-        .json({ message: "Reset token is invalid or has expired." });
+    if (!thatOrg) {
+      return res.status(400).json({
+        message: "Reset token is invalid, used, or has expired.",
+      });
+    }
 
-    // Commit new access token securely
+    // Hash new access code and update security fields
     thatOrg.accessCode = await bcrypt.hash(newAccessCode, 10);
 
-    // Purge single-use token entries from tracking document block
+    // Purge one-time reset tokens and reset security lockout counters
     thatOrg.resetPasswordToken = null;
     thatOrg.resetPasswordExpiresAt = null;
-    thatOrg.failedAttempts = 0; // Release locks if applicable
+    thatOrg.failedAttempts = 0;
     thatOrg.lockoutUntil = null;
 
     await thatOrg.save();
 
     return res.status(200).json({
-      message: "Passkey reset successfully. You can now use your new code.",
+      message:
+        "Passkey reset successfully. You can now log in using your new code.",
     });
   } catch (err) {
-    console.error(err);
-    return res
-      .status(500)
-      .json({ message: "Error processing security token swap" });
+    console.error("Passkey reset execution error:", err);
+    return res.status(500).json({
+      message: "An error occurred while processing the passkey reset.",
+    });
   }
 };
 
