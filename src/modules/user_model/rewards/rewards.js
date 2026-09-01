@@ -302,7 +302,7 @@ const getNewbieRetentionWinners = async (req, res) => {
 const createInitialOrganizationPasskey = async (req, res) => {
   try {
     const OrgPasskeyModel = req.db.model("OrgPasskey", OrgSchemaForPasskey);
-    const { accessCode } = req.body;
+    const { accessCode, email } = req.body;
     const orgName = req.user.org; // Securely fetched from JWT auth state context
 
     // 1. Validation for essential inputs
@@ -341,6 +341,7 @@ const createInitialOrganizationPasskey = async (req, res) => {
     // 4. Save the document configuration to the collection
     const newOrgPasskey = new OrgPasskeyModel({
       org: orgName,
+      email: email,
       accessCode: hashedAccessCode,
       failedAttempts: 0,
       lockoutUntil: null,
@@ -478,17 +479,19 @@ const forgotOrganizationPasskey = async (req, res) => {
   try {
     const { email } = req.body;
     const orgName = req.user.org;
-    const User = connections.Main.model("User", UserSchema);
-    const thatUser = await User.findOne({ email: email });
+    const OrgPasskeyModel = req.db.model("OrgPasskey", OrgSchemaForPasskey);
+
+    const thatUser = await OrgPasskeyModel.findOne({
+      email: email,
+      org: orgName,
+    });
     if (!thatUser) {
+      console.log("didnt find")
       return res
         .status(200)
         .json({ message: "A reset link has been sent to your mail" });
     }
-    // Prevent OverwriteModelError crashes on dynamic multi-tenant routes
-    const OrgPasskeyModel =
-      req.db.models.OrgPasskey ||
-      req.db.model("OrgPasskey", OrgSchemaForPasskey);
+    // Prevent OverwriteModelError crashes on dynamic multi-tenant rout
 
     const thatOrg = await OrgPasskeyModel.findOne({ org: orgName });
     if (!thatOrg) {
@@ -511,7 +514,7 @@ const forgotOrganizationPasskey = async (req, res) => {
 
     // Dispatch raw reset token via Brevo universal mail service
     sendUniversalMail("FORGOT_PASSKEY", {
-      recipientEmail: email,
+      recipientEmail: thatUser.email,
       recipientName: "Admin",
       subject: `Passkey Recovery Code - ${orgName}`,
       personOrg: orgName,
@@ -520,7 +523,7 @@ const forgotOrganizationPasskey = async (req, res) => {
 
     return res.status(200).json({
       message:
-        "Recovery authorization payload dispatched completely via Brevo service infrastructure lines.",
+        "Recovery authorization payload dispatched completely to your mail.",
     });
   } catch (err) {
     console.error("Brevo Email Sending Error Node Context Caught:", err);
@@ -624,6 +627,86 @@ const getPasskeyStatus = async (req, res) => {
   }
 };
 
+// Optional: ensure request is authenticated
+
+// @route   POST /api/passkey/update-email
+// @desc    Update the admin recovery email
+// @access  Protected
+const updateEmail = async (req, res) => {
+  try {
+    const OrgPasskeyModel =
+      req.db.models.OrgPasskey ||
+      req.db.model("OrgPasskey", OrgSchemaForPasskey);
+    const { email } = req.body;
+
+    // Validate email presence
+    if (!email) {
+      return res.status(400).json({ message: "Email address is required." });
+    }
+
+    // Basic email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: "Invalid email address format." });
+    }
+
+    // Find existing passkey configuration document
+    const passkeyDoc = await OrgPasskeyModel.findOne();
+    if (!passkeyDoc) {
+      return res
+        .status(404)
+        .json({ message: "Passkey security profile not configured." });
+    }
+
+    // Update the recovery email
+    passkeyDoc.email = email;
+    await passkeyDoc.save();
+
+    return res.status(200).json({
+      message: "Recovery email updated successfully.",
+    });
+  } catch (error) {
+    console.error("Error updating recovery email:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error updating recovery email." });
+  }
+};
+
+// const getPasskeyStatus = async (req, res) => {
+//   try {
+//     console.log("Resetting passkey configuration...");
+
+//     const OrgPasskeyModel =
+//       req.db.models.OrgPasskey ||
+//       req.db.model("OrgPasskey", OrgSchemaForPasskey);
+
+//     const orgName = req.user.org;
+
+//     // Delete the passkey document for this organization completely
+//     const deletedOrg = await OrgPasskeyModel.findOneAndDelete({ org: orgName });
+
+//     if (!deletedOrg) {
+//       return res.status(440 || 404).json({
+//         success: false,
+//         message:
+//           "No existing passkey record found to delete for this organization.",
+//       });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message:
+//         "Passkey record deleted successfully. You can now configure it again from scratch.",
+//     });
+//   } catch (err) {
+//     console.error("Error resetting passkey:", err);
+//     return res
+//       .status(500)
+//       .json({ message: "Error resetting passkey configuration" });
+//   }
+// };
+
 module.exports = {
   getPerfectAttendanceWinners,
   getEarlyBirdRewardWinners,
@@ -634,4 +717,5 @@ module.exports = {
   resetOrganizationPasskey,
   createInitialOrganizationPasskey,
   getPasskeyStatus,
+  updateEmail,
 };

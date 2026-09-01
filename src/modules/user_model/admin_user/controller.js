@@ -336,7 +336,93 @@ const createSession = async (req, res) => {
   }
 };
 
-// Close session
+//Close session
+// const closeSession = async (req, res) => {
+//   try {
+//     const User = connections.Main.model("User", UserSchema);
+//     const Session = req.db.model("Session", sessionSchema);
+//     const People = req.db.model("People", peopleSchema);
+//     const Attendance = req.db.model("Attendance", attendanceSchema);
+
+//     const { sessionId } = req.params;
+
+//     const now = new Date();
+//     const todayString = now.toISOString().split("T")[0];
+//     const timeString = now.toLocaleTimeString([], {
+//       hour: "2-digit",
+//       minute: "2-digit",
+//     });
+
+//     // 1. Check if already closed
+//     const user = req.user.id;
+
+//     const isClosed = await Session.findById(sessionId);
+//     const author = await User.findById(isClosed.author);
+//     if (isClosed.author.toString() !== user.toString()) {
+//       console.log("here");
+//       return res.status(401).json({
+//         message: `${author?.name ?? "someone"} opened this session, tell them to close it`,
+//       });
+//     }
+//     if (!isClosed || isClosed.status === "Closed") {
+//       return res.status(200).json({ message: "Session closed already" });
+//     }
+
+//     // 2. Mark session as closed
+//     const closedSession = await Session.findByIdAndUpdate(
+//       sessionId,
+//       {
+//         end: timeString,
+//         status: "Closed",
+//         date: new Date(todayString), // use Date type
+//       },
+//       { returnDocument: "after" },
+//     );
+
+//     if (!closedSession) {
+//       return res.status(404).json({ message: "Session not found" });
+//     }
+
+//     // 4. Get absent people
+//     const absentPeople = await People.find({ status: "A" }).select(
+//       "_id gender isNewMember",
+//     );
+
+//     for (const p of absentPeople) {
+//       await Attendance.updateOne(
+//         { name: p._id, date: todayString }, // unique key
+//         {
+//           $set: {
+//             sessionId,
+//             status: "A",
+//             gender: p.gender,
+//             markedBy: req.user.id,
+//             isNewMember: p.isNewMember,
+//           },
+//         },
+//         { upsert: true },
+//       );
+//     }
+
+//     // 3. Reset people statuses
+//     await People.updateMany({ status: "P" }, { $set: { status: "A" } });
+//     await People.updateMany({ staying: true }, { $set: { staying: false } });
+
+//     // 🚀 Fire in the background without making the user wait!
+//     checkOnMissingNewbies(req).catch((err) =>
+//       console.error("Background email process error:", err),
+//     );
+//     sendWelcomeEmailToNewbies(req).catch((err) =>
+//       console.error("Background email process error:", err),
+//     );
+
+//     return res.status(200).json({ message: "Session closed", closedSession });
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ message: "Something went wrong" });
+//   }
+// };
+
 const closeSession = async (req, res) => {
   try {
     const User = connections.Main.model("User", UserSchema);
@@ -347,7 +433,6 @@ const closeSession = async (req, res) => {
     const { sessionId } = req.params;
 
     const now = new Date();
-    const todayString = now.toISOString().split("T")[0];
     const timeString = now.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
@@ -368,13 +453,19 @@ const closeSession = async (req, res) => {
       return res.status(200).json({ message: "Session closed already" });
     }
 
+    // FIX: Extract the day the session was opened and format it as a pure YYYY-MM-DD string
+    const sessionOpenedDateString =
+      isClosed.date instanceof Date
+        ? isClosed.date.toISOString().split("T")[0]
+        : new Date(isClosed.date).toISOString().split("T")[0];
+
     // 2. Mark session as closed
     const closedSession = await Session.findByIdAndUpdate(
       sessionId,
       {
         end: timeString,
         status: "Closed",
-        date: new Date(todayString), // use Date type
+        date: sessionOpenedDateString, // Saves as string to match your report
       },
       { returnDocument: "after" },
     );
@@ -390,7 +481,7 @@ const closeSession = async (req, res) => {
 
     for (const p of absentPeople) {
       await Attendance.updateOne(
-        { name: p._id, date: todayString }, // unique key
+        { name: p._id, date: sessionOpenedDateString }, // Uses the clean opening date string
         {
           $set: {
             sessionId,
@@ -398,6 +489,7 @@ const closeSession = async (req, res) => {
             gender: p.gender,
             markedBy: req.user.id,
             isNewMember: p.isNewMember,
+            date: sessionOpenedDateString, // Saves as pure text string in the database
           },
         },
         { upsert: true },
@@ -533,6 +625,8 @@ const markAsPresent = async (req, res) => {
       markedBy: req.user.id,
       date: today,
       gender: person.gender,
+      isNewMember: person.isNewMember,
+      isParentInChurch: person.isParentInChurch,
     });
 
     // Update person status
@@ -621,6 +715,11 @@ const createPerson = async (req, res) => {
       newPersonData.isNewMember = value.isNewMember;
       // Store as ISO string for consistency
       newPersonData.dateJoined = new Date().toISOString();
+    }
+
+    if (value.hasParentInChurch) {
+      console.log(value.hasParentInChurch);
+      newPersonData.isParentInChurch = value.hasParentInChurch;
     }
 
     if (value.contact && value.contact.trim().length > 0) {
@@ -887,13 +986,14 @@ const updateDOBandProfilePicture = async (req, res) => {
   try {
     const People = req.db.model("People", peopleSchema);
     const { id } = req.params;
-    const { dob, email } = req.query; // Consider changing req.query to req.body in your routes later
 
-    // 1. Build update object dynamically & validate inputs
+    // Updated parameter mapping
+    const { dob, email, isParentInChurch, isNewMember } = req.query;
+
     const updateFields = {};
 
     if (dob) {
-      if (dob.trim().length === 0) {
+      if (String(dob).trim().length === 0) {
         return res
           .status(400)
           .json({ message: "Invalid input for Date Of Birth" });
@@ -901,17 +1001,27 @@ const updateDOBandProfilePicture = async (req, res) => {
       updateFields.dob = dob;
     }
 
+    // Handles true/false logic for isParentInChurch safely
+    if (isParentInChurch !== undefined) {
+      const parentString = String(isParentInChurch).toLowerCase().trim();
+      updateFields.isParentInChurch = parentString === "true";
+    }
+
+    if (isNewMember !== undefined) {
+      const memberString = String(isNewMember).toLowerCase().trim();
+      updateFields.isNewMember = memberString === "true";
+    }
+
     if (email) {
-      const normalizedEmail = email.toLowerCase().trim();
+      const normalizedEmail = String(email).toLowerCase().trim();
 
       if (normalizedEmail.length === 0 || !normalizedEmail.includes("@")) {
         return res.status(400).json({ message: "Invalid input for email" });
       }
 
-      // 2. CHECK DUPES: Find if email exists but belongs to a DIFFERENT user
       const emailExists = await People.findOne({
         email: normalizedEmail,
-        _id: { $ne: id }, // Excludes the current user from the search
+        _id: { $ne: id },
       });
 
       if (emailExists) {
@@ -921,16 +1031,14 @@ const updateDOBandProfilePicture = async (req, res) => {
       updateFields.email = normalizedEmail;
     }
 
-    // 3. Prevent database call if no fields are provided for update
     if (Object.keys(updateFields).length === 0) {
       return res.status(400).json({ message: "No fields provided for update" });
     }
 
-    // 4. Update person
     const targetPerson = await People.findByIdAndUpdate(
       id,
       { $set: updateFields },
-      { returnDocument: "after", runValidators: true }, // runValidators ensures schema rules apply
+      { returnDocument: "after", runValidators: true },
     );
 
     if (!targetPerson) {
@@ -1710,10 +1818,7 @@ const genderReport = async (req, res) => {
       grouped[key] = (grouped[key] || 0) + 1;
     });
 
-    console.log("Grouped attendance counts:");
-    console.log(grouped);
-
-    // Counters
+    // General counters
     let femalePresent = 0;
     let femaleAbsent = 0;
     let malePresent = 0;
@@ -1721,15 +1826,42 @@ const genderReport = async (req, res) => {
     let unknownPresent = 0;
     let unknownAbsent = 0;
 
+    // Parent in church counters
+    let parentInChurchFemalePresent = 0;
+    let parentInChurchFemaleAbsent = 0;
+    let parentInChurchMalePresent = 0;
+    let parentInChurchMaleAbsent = 0;
+
+    // New member counters
+    let newMemberFemalePresent = 0;
+    let newMemberFemaleAbsent = 0;
+    let newMemberMalePresent = 0;
+    let newMemberMaleAbsent = 0;
+
     records.forEach((r) => {
       if (r.gender === "F") {
-        if (r.status === "P") femalePresent++;
-        if (r.status === "A") femaleAbsent++;
+        if (r.status === "P") {
+          femalePresent++;
+          if (r.isParentInChurch) parentInChurchFemalePresent++;
+          if (r.isNewMember) newMemberFemalePresent++;
+        }
+        if (r.status === "A") {
+          femaleAbsent++;
+          if (r.isParentInChurch) parentInChurchFemaleAbsent++;
+          if (r.isNewMember) newMemberFemaleAbsent++;
+        }
       } else if (r.gender === "M") {
-        if (r.status === "P") malePresent++;
-        if (r.status === "A") maleAbsent++;
+        if (r.status === "P") {
+          malePresent++;
+          if (r.isParentInChurch) parentInChurchMalePresent++;
+          if (r.isNewMember) newMemberMalePresent++;
+        }
+        if (r.status === "A") {
+          maleAbsent++;
+          if (r.isParentInChurch) parentInChurchMaleAbsent++;
+          if (r.isNewMember) newMemberMaleAbsent++;
+        }
       } else {
-        // Handle missing/unknown genders
         if (r.status === "P") unknownPresent++;
         if (r.status === "A") unknownAbsent++;
       }
@@ -1739,8 +1871,25 @@ const genderReport = async (req, res) => {
       date: requestedDate,
       females: { present: femalePresent, absent: femaleAbsent },
       males: { present: malePresent, absent: maleAbsent },
+      withParentsInChurch: {
+        females: {
+          present: parentInChurchFemalePresent,
+          absent: parentInChurchFemaleAbsent,
+        },
+        males: {
+          present: parentInChurchMalePresent,
+          absent: parentInChurchMaleAbsent,
+        },
+      },
+      newMembers: {
+        females: {
+          present: newMemberFemalePresent,
+          absent: newMemberFemaleAbsent,
+        },
+        males: { present: newMemberMalePresent, absent: newMemberMaleAbsent }, // ✅ Fixed variable reference
+      },
       unknowns: { present: unknownPresent, absent: unknownAbsent },
-      duplicates: grouped, // expose grouped counts so you can see duplicates
+      duplicates: grouped,
     });
   } catch (err) {
     console.error(err);

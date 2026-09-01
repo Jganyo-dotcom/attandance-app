@@ -141,24 +141,26 @@ const LoginUser = async (req, res) => {
 
     // OTP verification flow for unverified users
     if (!tryingToLoginUser.isVerified) {
-      return
       try {
         // Step 1: Generate a secure 6-digit OTP string
         const otpCode = crypto.randomInt(100000, 999999).toString();
 
         // Step 2: Save OTP + expiry to user
         tryingToLoginUser.verifiedToken = otpCode;
+        console.log(otpCode);
         tryingToLoginUser.verifiedTokenExpiry = Date.now() + 5 * 60 * 1000;
         await tryingToLoginUser.save();
         const currentYear = new Date().getFullYear();
         // Step 3: Prepare Brevo email payload
-        
+
         sendUniversalMail("OTP", {
           recipientEmail: tryingToLoginUser.email,
           recipientName: tryingToLoginUser.name,
           subject: "ACCOUNT VERIFICATION (PresencePro)",
-          otpCode: otpCode
-        }).catch(err => console.error("Non-blocking background email failure:", err));
+          otpCode: otpCode,
+        }).catch((err) =>
+          console.error("Non-blocking background email failure:", err),
+        );
 
         // Explicit return prevents moving down into standard success token generation blocks
         return res.status(200).json({
@@ -356,8 +358,6 @@ const deleteall = async (req, res) => {
   return res.status(200).json({ message: "Deleted" });
 };
 
-
-
 // Validation schema
 const adminSchema = Joi.object({
   name: Joi.string().required(),
@@ -427,7 +427,6 @@ const deleteAdmin = async (req, res) => {
 
 // Initialize Brevo client with the modern v4+ client architecture
 
-
 const passLink = async (req, res) => {
   try {
     const User = connections.Main.model("User", UserSchema);
@@ -439,25 +438,23 @@ const passLink = async (req, res) => {
 
     // 1. Fetch user account matching configuration parameter parameters
     const user = await User.findOne({
-      $or: [
-        { email: identifier.trim() }, 
-        { username: identifier.trim() }
-      ],
+      $or: [{ email: identifier.trim() }, { username: identifier.trim() }],
     });
 
     // 2. Prevent User Enumeration Identity Leaks: Always return same message if missing OR deleted
     if (!user || user.isDeleted === true) {
       return res.status(200).json({
-        message: "If this account exists, a reset link will be sent to the registered email.",
+        message:
+          "If this account exists, a reset link will be sent to the registered email.",
       });
     }
 
     // 3. Generate token securely
     const token = crypto.randomBytes(32).toString("hex");
     user.resetToken = token;
-    
+
     // 4. Synchronize expirations: Setting database schema time limit matrix to match email (15 minutes)
-    user.resetTokenExpiry = Date.now() + 15 * 60 * 1000; 
+    user.resetTokenExpiry = Date.now() + 15 * 60 * 1000;
     await user.save();
 
     const resetLink = `https://elikemtech.netlify.app/reset-password.html?token=${token}`;
@@ -467,19 +464,26 @@ const passLink = async (req, res) => {
       recipientEmail: user.email,
       recipientName: user.username || user.name,
       subject: "Password Reset - PresencePro",
-      custome: resetLink
+      custome: resetLink,
     }).catch((emailErr) => {
-      console.error("Background password delivery failed server tracking:", emailErr.message);
+      console.error(
+        "Background password delivery failed server tracking:",
+        emailErr.message,
+      );
     });
 
     // 6. CRITICAL FIX: Explicitly send response back so frontend stops spinning loading icons
     return res.status(200).json({
-      message: "If this account exists, a reset link will be sent to the registered email.",
+      message:
+        "If this account exists, a reset link will be sent to the registered email.",
     });
-
   } catch (err) {
     console.error("Critical password generation route breakdown error:", err);
-    return res.status(500).json({ message: "Something went wrong while processing reset link request." });
+    return res
+      .status(500)
+      .json({
+        message: "Something went wrong while processing reset link request.",
+      });
   }
 };
 

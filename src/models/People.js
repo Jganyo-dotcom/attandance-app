@@ -15,6 +15,7 @@ const PeopleSchema = new mongoose.Schema(
     submitted: { type: Boolean, required: true, default: false },
     dob: { type: Date, required: false, default: null },
     isNewMember: { type: Boolean, default: null },
+    isParentInChurch: { type: Boolean, default: null },
     dateJoined: { type: Date, required: false, default: null },
     email: {
       type: String,

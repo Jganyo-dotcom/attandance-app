@@ -72,7 +72,7 @@ const {
   verifyOrganizationPasskey,
   changeOrganizationPasskey,
   forgotOrganizationPasskey,
-  resetOrganizationPasskey
+  resetOrganizationPasskey,
 } = require("./rewards/rewards");
 const {
   viewPerfectAttendanceLeaderboard,
@@ -392,19 +392,23 @@ router.get("/display/newbie-streaks", viewNewbieRetentionLeaderboard);
 /////////////////////////////////////////
 
 // Initialize the 6-digit passcode for the very first time (Protected by a strict guard clause)
-router.post("/passkey/create",authmiddleware, createInitialOrganizationPasskey);
+router.post(
+  "/passkey/create",
+  authmiddleware,
+  createInitialOrganizationPasskey,
+);
 
 // Validate entered code strings against stored bcrypt hashes with automated lockout protection
-router.post("/passkey/verify",authmiddleware, verifyOrganizationPasskey);
+router.post("/passkey/verify", authmiddleware, verifyOrganizationPasskey);
 
 // Modify active security codes for logged-in church administrators
-router.post("/passkey/change",authmiddleware, changeOrganizationPasskey);
+router.post("/passkey/change", authmiddleware, changeOrganizationPasskey);
 
 // Generate single-use recovery tokens and trigger Brevo transactional mail delivery
-router.post("/passkey/forgot",authmiddleware, forgotOrganizationPasskey);
+router.post("/passkey/forgot", authmiddleware, forgotOrganizationPasskey);
 
 // Consume active reset tokens to safely overwrite organization credentials
-router.post("/passkey/reset",authmiddleware, resetOrganizationPasskey);
+router.post("/passkey/reset", authmiddleware, resetOrganizationPasskey);
 
 // Consume active reset tokens to safely overwrite organization credentials
 router.get("/passkey/status", authmiddleware, getPasskeyStatus);
