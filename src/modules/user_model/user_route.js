@@ -54,6 +54,7 @@ const {
   adminDismiss,
   healthCheck,
   getNewMembersByDate,
+  getAllSessions,
   // cleanupTodayDuplicates,
 } = require("./admin_user/controller");
 const {
@@ -95,6 +96,7 @@ router.get("/health", healthCheck);
 router.post("/guest/register", registerNewUser);
 
 router.delete("/admin/deleteAll", authmiddleware, CheckroleonAll, deleteall);
+router.get("/admin/get-all-session",authmiddleware, getAllSessions);
 
 // route to verify staff account
 router.get(

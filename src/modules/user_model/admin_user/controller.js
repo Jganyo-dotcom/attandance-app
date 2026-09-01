@@ -1754,27 +1754,70 @@ const pastAttendance = async () => {
 // Controller function to return end-of-day attendance summary
 
 // now let this be based on the databe you are requesting like that othes
+// const endOfDayReport = async (req, res) => {
+//   try {
+//     // Get Attendance model from middleware-injected db
+//     const Attendance =
+//       req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
+
+//     // Get date from query string, default to today if not provided
+//     const requestedDate =
+//       req.query.date || new Date().toISOString().split("T")[0];
+
+//     // Query attendance records for that date
+//     const records = await Attendance.find({ date: requestedDate });
+
+//     // If no records for requested date, return "no data"
+//     if (records.length === 0) {
+//       return res.json({
+//         message: `No attendance data available for ${requestedDate}`,
+//       });
+//     }
+
+//     // Count P vs A
+//     let present = 0;
+//     let absent = 0;
+//     records.forEach((r) => {
+//       if (r.status === "P") present++;
+//       if (r.status === "A") absent++;
+//     });
+
+//     // Respond with JSON the frontend can use
+//     return res.json({
+//       date: requestedDate,
+//       present,
+//       absent,
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ message: "Something went wrong" });
+//   }
+// };
+
 const endOfDayReport = async (req, res) => {
   try {
     // Get Attendance model from middleware-injected db
     const Attendance =
       req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
 
-    // Get date from query string, default to today if not provided
-    const requestedDate =
-      req.query.date || new Date().toISOString().split("T")[0];
+    // Extract sessionId from query parameter
+    const { sessionId } = req.query;
 
-    // Query attendance records for that date
-    const records = await Attendance.find({ date: requestedDate });
+    if (!sessionId) {
+      return res.status(400).json({ message: "Session ID is required." });
+    }
 
-    // If no records for requested date, return "no data"
+    // Query attendance records for that specific session ID
+    const records = await Attendance.find({ sessionId });
+
+    // Handle case with no records
     if (records.length === 0) {
       return res.json({
-        message: `No attendance data available for ${requestedDate}`,
+        message: "No attendance data available for this session.",
       });
     }
 
-    // Count P vs A
+    // Count Present vs Absent totals
     let present = 0;
     let absent = 0;
     records.forEach((r) => {
@@ -1782,36 +1825,146 @@ const endOfDayReport = async (req, res) => {
       if (r.status === "A") absent++;
     });
 
-    // Respond with JSON the frontend can use
+    // Respond with session ID and metrics
     return res.json({
-      date: requestedDate,
+      sessionId,
       present,
       absent,
     });
   } catch (err) {
-    console.error(err);
+    console.error("Error in endOfDayReport:", err);
     return res.status(500).json({ message: "Something went wrong" });
   }
 };
+
+
+
+// const genderReport = async (req, res) => {
+//   try {
+//     const Attendance =
+//       req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
+
+//     const requestedDate =
+//       req.query.date || new Date().toISOString().split("T")[0];
+
+//     // Query attendance records for that date
+//     const records = await Attendance.find({ date: requestedDate });
+
+//     if (records.length === 0) {
+//       return res.json({
+//         message: `No attendance data available for ${requestedDate}`,
+//       });
+//     }
+
+//     // Group by person+gender to spot duplicates
+//     const grouped = {};
+//     records.forEach((r) => {
+//       const key = `${r.name}-${r.gender}`;
+//       grouped[key] = (grouped[key] || 0) + 1;
+//     });
+
+//     // General counters
+//     let femalePresent = 0;
+//     let femaleAbsent = 0;
+//     let malePresent = 0;
+//     let maleAbsent = 0;
+//     let unknownPresent = 0;
+//     let unknownAbsent = 0;
+
+//     // Parent in church counters
+//     let parentInChurchFemalePresent = 0;
+//     let parentInChurchFemaleAbsent = 0;
+//     let parentInChurchMalePresent = 0;
+//     let parentInChurchMaleAbsent = 0;
+
+//     // New member counters
+//     let newMemberFemalePresent = 0;
+//     let newMemberFemaleAbsent = 0;
+//     let newMemberMalePresent = 0;
+//     let newMemberMaleAbsent = 0;
+
+//     records.forEach((r) => {
+//       if (r.gender === "F") {
+//         if (r.status === "P") {
+//           femalePresent++;
+//           if (r.isParentInChurch) parentInChurchFemalePresent++;
+//           if (r.isNewMember) newMemberFemalePresent++;
+//         }
+//         if (r.status === "A") {
+//           femaleAbsent++;
+//           if (r.isParentInChurch) parentInChurchFemaleAbsent++;
+//           if (r.isNewMember) newMemberFemaleAbsent++;
+//         }
+//       } else if (r.gender === "M") {
+//         if (r.status === "P") {
+//           malePresent++;
+//           if (r.isParentInChurch) parentInChurchMalePresent++;
+//           if (r.isNewMember) newMemberMalePresent++;
+//         }
+//         if (r.status === "A") {
+//           maleAbsent++;
+//           if (r.isParentInChurch) parentInChurchMaleAbsent++;
+//           if (r.isNewMember) newMemberMaleAbsent++;
+//         }
+//       } else {
+//         if (r.status === "P") unknownPresent++;
+//         if (r.status === "A") unknownAbsent++;
+//       }
+//     });
+
+//     return res.json({
+//       date: requestedDate,
+//       females: { present: femalePresent, absent: femaleAbsent },
+//       males: { present: malePresent, absent: maleAbsent },
+//       withParentsInChurch: {
+//         females: {
+//           present: parentInChurchFemalePresent,
+//           absent: parentInChurchFemaleAbsent,
+//         },
+//         males: {
+//           present: parentInChurchMalePresent,
+//           absent: parentInChurchMaleAbsent,
+//         },
+//       },
+//       newMembers: {
+//         females: {
+//           present: newMemberFemalePresent,
+//           absent: newMemberFemaleAbsent,
+//         },
+//         males: { present: newMemberMalePresent, absent: newMemberMaleAbsent }, // ✅ Fixed variable reference
+//       },
+//       unknowns: { present: unknownPresent, absent: unknownAbsent },
+//       duplicates: grouped,
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ message: "Something went wrong" });
+//   }
+// };
+
+// get all sessions
 
 const genderReport = async (req, res) => {
   try {
     const Attendance =
       req.db.models.Attendance || req.db.model("Attendance", attendanceSchema);
 
-    const requestedDate =
-      req.query.date || new Date().toISOString().split("T")[0];
+    const { sessionId } = req.query;
 
-    // Query attendance records for that date
-    const records = await Attendance.find({ date: requestedDate });
+    if (!sessionId) {
+      return res.status(400).json({ message: "Session ID is required." });
+    }
+
+    // Query attendance records filtered by session ID
+    const records = await Attendance.find({ sessionId });
 
     if (records.length === 0) {
       return res.json({
-        message: `No attendance data available for ${requestedDate}`,
+        message: "No attendance data available for this session.",
       });
     }
 
-    // Group by person+gender to spot duplicates
+    // Group by person + gender to identify duplicates
     const grouped = {};
     records.forEach((r) => {
       const key = `${r.name}-${r.gender}`;
@@ -1819,24 +1972,24 @@ const genderReport = async (req, res) => {
     });
 
     // General counters
-    let femalePresent = 0;
-    let femaleAbsent = 0;
-    let malePresent = 0;
-    let maleAbsent = 0;
-    let unknownPresent = 0;
-    let unknownAbsent = 0;
+    let femalePresent = 0,
+      femaleAbsent = 0;
+    let malePresent = 0,
+      maleAbsent = 0;
+    let unknownPresent = 0,
+      unknownAbsent = 0;
 
     // Parent in church counters
-    let parentInChurchFemalePresent = 0;
-    let parentInChurchFemaleAbsent = 0;
-    let parentInChurchMalePresent = 0;
-    let parentInChurchMaleAbsent = 0;
+    let parentInChurchFemalePresent = 0,
+      parentInChurchFemaleAbsent = 0;
+    let parentInChurchMalePresent = 0,
+      parentInChurchMaleAbsent = 0;
 
     // New member counters
-    let newMemberFemalePresent = 0;
-    let newMemberFemaleAbsent = 0;
-    let newMemberMalePresent = 0;
-    let newMemberMaleAbsent = 0;
+    let newMemberFemalePresent = 0,
+      newMemberFemaleAbsent = 0;
+    let newMemberMalePresent = 0,
+      newMemberMaleAbsent = 0;
 
     records.forEach((r) => {
       if (r.gender === "F") {
@@ -1868,7 +2021,7 @@ const genderReport = async (req, res) => {
     });
 
     return res.json({
-      date: requestedDate,
+      sessionId,
       females: { present: femalePresent, absent: femaleAbsent },
       males: { present: malePresent, absent: maleAbsent },
       withParentsInChurch: {
@@ -1886,7 +2039,10 @@ const genderReport = async (req, res) => {
           present: newMemberFemalePresent,
           absent: newMemberFemaleAbsent,
         },
-        males: { present: newMemberMalePresent, absent: newMemberMaleAbsent }, // ✅ Fixed variable reference
+        males: {
+          present: newMemberMalePresent,
+          absent: newMemberMaleAbsent,
+        },
       },
       unknowns: { present: unknownPresent, absent: unknownAbsent },
       duplicates: grouped,
@@ -1894,6 +2050,22 @@ const genderReport = async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+const getAllSessions = async (req, res) => {
+  try {
+    const Session =
+      req.db.models.Session || req.db.model("Session", sessionSchema);
+
+    // Fetch all sessions
+    const sessions = await Session.find({});
+
+    // Send back with 200 OK
+    res.status(200).json(sessions);
+  } catch (err) {
+    console.error("Error fetching sessions:", err);
+    res.status(500).json({ message: "Something went wrong" });
   }
 };
 
@@ -2654,6 +2826,7 @@ module.exports = {
   resetAdminPasswordStatus,
   generateOrgCode,
   findOrgCode,
+  getAllSessions,
   generateQrCode,
   AdminGetSubmittedPersons,
   adminDismiss,
