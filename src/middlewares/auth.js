@@ -1,8 +1,7 @@
 const jwt = require("jsonwebtoken");
 const { connections } = require("../config/db"); // import your connections object
 
-const authmiddleware = (req, res, next) => {
-
+const authmiddleware = async (req, res, next) => {
   try {
     const token = req.headers["authorization"]?.split(" ")[1];
     if (!token) {
@@ -15,6 +14,7 @@ const authmiddleware = (req, res, next) => {
     }
 
     req.user = verify_token;
+
 
     // Attach the correct DB connection based on org in token
     const org = verify_token.org;

@@ -616,6 +616,9 @@ const markAsPresent = async (req, res) => {
     if (exists) {
       return res.status(400).json({ message: "Already marked present" });
     }
+    if (person.isParentInChurch === null) {
+      return res.status(400).json({ message: "Is parent in church?" });
+    }
 
     // Create attendance record
     const presentPerson = new Attendance({
@@ -1003,6 +1006,7 @@ const updateDOBandProfilePicture = async (req, res) => {
 
     // Handles true/false logic for isParentInChurch safely
     if (isParentInChurch !== undefined) {
+      console.log(isParentInChurch)
       const parentString = String(isParentInChurch).toLowerCase().trim();
       updateFields.isParentInChurch = parentString === "true";
     }
@@ -1836,8 +1840,6 @@ const endOfDayReport = async (req, res) => {
     return res.status(500).json({ message: "Something went wrong" });
   }
 };
-
-
 
 // const genderReport = async (req, res) => {
 //   try {
