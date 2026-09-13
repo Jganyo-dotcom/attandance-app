@@ -443,7 +443,7 @@ const closeSession = async (req, res) => {
 
     const isClosed = await Session.findById(sessionId);
     const author = await User.findById(isClosed.author);
-    if (isClosed.author.toString() !== user.toString()) {
+    if (isClosed.author.toString() === user.toString()) {
       console.log("here");
       return res.status(401).json({
         message: `${author?.name ?? "someone"} opened this session, tell them to close it`,
