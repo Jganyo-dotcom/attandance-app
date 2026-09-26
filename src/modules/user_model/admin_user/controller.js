@@ -449,7 +449,7 @@ const closeSession = async (req, res) => {
         message: `${author?.name ?? "someone"} opened this session, tell them to close it`,
       });
     }
-    if (!isClosed || isClosed.status === "Closed") {
+    if (!isClosed || isClosed.status !== "Closed") {
       return res.status(200).json({ message: "Session closed already" });
     }
 
