@@ -2783,6 +2783,7 @@ const getNewMembersByDate = async (req, res) => {
 
 const sendAdminReport = async (req, res) => {
   try {
+    const User = connections.Main.model("User", UserSchema);
     const { subject, segments } = req.body;
 
     // 1. Validate request payload
