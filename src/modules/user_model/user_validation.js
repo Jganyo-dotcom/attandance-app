@@ -16,14 +16,18 @@ const validationForLogin = Joi.object({
 
 const validationForCreateSchema = Joi.object({
   name: Joi.string().min(5).max(50).required(),
+  email: Joi.string().email().lowercase().trim().optional().allow("", null),
+  dob: Joi.date().iso().max("now").optional().allow("", null),
   department: Joi.string().min(5).max(50).required(),
   level: Joi.string().min(5).max(50).default("N/A"),
-  isNewMember:Joi.boolean().required(),
-  hasParentInChurch:Joi.boolean().required(),
+  isNewMember: Joi.boolean().required(),
+  hasParentInChurch: Joi.boolean().required(),
   gender: Joi.string().required(),
   contact: Joi.string()
     .length(10)
-    .pattern(/^[0-9]+$/),
+    .pattern(/^[0-9]+$/)
+    .optional()
+    .allow("", null),
 });
 
 const validationForPasswordChange = Joi.object({

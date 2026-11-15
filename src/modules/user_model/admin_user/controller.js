@@ -679,33 +679,39 @@ const markAsAbsent = async (req, res) => {
 
 // Create person
 const createPerson = async (req, res) => {
-  const People = req.db.model("People", peopleSchema);
-  const { error, value } = validationForCreateSchema.validate(req.body);
-  if (error) return res.status(400).json({ error: error.details[0].message });
-
-  // Duplicate check only if contact provided
-  if (value.contact) {
-    const existingPhone = await People.findOne({ contact: value.contact });
-    if (existingPhone) {
-      return res
-        .status(400)
-        .json({ message: "Phone number already exists in database" });
-    }
-  }
-
-  lastCount = await People.findOne().sort({ count: -1 }).exec();
-
-  const nextCount = lastCount ? lastCount.count + 1 : 1;
-
   try {
-    const { name, department } = req.body;
-    if (nextCount === null) {
-      nextCount = 1;
+    const People = req.db.model("People", peopleSchema);
+    const { error, value } = validationForCreateSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
     }
+
+    // Duplicate check only if contact provided
+    if (value.contact) {
+      const existingPhone = await People.findOne({ contact: value.contact });
+      if (existingPhone) {
+        return res
+          .status(400)
+          .json({ message: "Phone number already exists in database" });
+      }
+    }
+
+    // Duplicate check only if email provided
+    if (value.email) {
+      const existingEmail = await People.findOne({ email: value.email });
+      if (existingEmail) {
+        return res
+          .status(400)
+          .json({ message: "Email address already exists in database" });
+      }
+    }
+
+    const lastCount = await People.findOne().sort({ count: -1 }).exec();
+    const nextCount = lastCount && lastCount.count ? lastCount.count + 1 : 1;
 
     const newPersonData = {
-      name,
-      department,
+      name: value.name,
+      department: value.department,
       org: req.user.org,
       level: value.level,
       gender: value.gender,
@@ -713,15 +719,20 @@ const createPerson = async (req, res) => {
       count: nextCount,
     };
 
+    if (value.email) {
+      newPersonData.email = value.email;
+    }
+
+    if (value.dob) {
+      newPersonData.dob = value.dob;
+    }
+
     if (value.isNewMember) {
-      console.log(value.isNewMember);
       newPersonData.isNewMember = value.isNewMember;
-      // Store as ISO string for consistency
       newPersonData.dateJoined = new Date().toISOString();
     }
 
     if (value.hasParentInChurch) {
-      console.log(value.hasParentInChurch);
       newPersonData.isParentInChurch = value.hasParentInChurch;
     }
 
@@ -729,7 +740,6 @@ const createPerson = async (req, res) => {
       newPersonData.contact = value.contact;
     } else {
       newPersonData.contact = String(nextCount).padStart(10, "0");
-      newPersonData.count = nextCount;
     }
 
     const newPerson = new People(newPersonData);
