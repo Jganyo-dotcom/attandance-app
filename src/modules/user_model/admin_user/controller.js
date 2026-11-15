@@ -2813,8 +2813,11 @@ const sendAdminReport = async (req, res) => {
     // 2. Fetch Admin recipients (scoped to the logged-in user's organization if available)
     const orgFilter = req.user?.org ? { org: req.user.org } : {};
     const admins = await User.find({
-      email: { $in: ["elikemejay@gmail.com", "gerdricse@gmail.com"] },
-    }).select("email username name org");
+      ...orgFilter,
+      email: { $exists: true, $ne: "" },
+      // Uncomment or adjust if you filter admins by role:
+       role: { $in: ["Admin", "Manager"] },
+    }).select("email username name org").lean();
 
     if (!admins || admins.length === 0) {
       return res
