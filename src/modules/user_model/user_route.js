@@ -12,6 +12,7 @@ const {
   verifyVerificationToken,
 } = require("./User_controller");
 const {
+  sendAdminReport,
   verif_staff_account,
   unblock_staff_account,
   pendingAccounts,
@@ -214,6 +215,8 @@ router.delete(
 );
 
 router.delete("/mark-stayed/:id", authmiddleware, checkroleonAll, undoStayed);
+
+router.post("/send-admin-report", authmiddleware,checkroleonAll, sendAdminReport);
 
 //  to get all the pople in the database
 router.get("/get-all/", authmiddleware, checkroleonAll, getAllPersons);

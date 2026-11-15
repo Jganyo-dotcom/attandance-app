@@ -2779,6 +2779,93 @@ const getNewMembersByDate = async (req, res) => {
   }
 };
 
+
+
+const sendAdminReport = async (req, res) => {
+  try {
+    const { subject, segments } = req.body;
+
+    // 1. Validate request payload
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({ message: "Email subject is required." });
+    }
+
+    if (!Array.isArray(segments) || segments.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "At least one service segment is required." });
+    }
+
+    const cleanSegments = segments
+      .filter((s) => (s.title && s.title.trim()) || (s.notes && s.notes.trim()))
+      .map((s) => ({
+        title: (s.title || "Service Segment").trim(),
+        notes: (s.notes || "—").trim(),
+      }));
+
+    if (cleanSegments.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Please provide valid notes before sending." });
+    }
+
+    // 2. Fetch Admin recipients (scoped to the logged-in user's organization if available)
+    const orgFilter = req.user?.org ? { org: req.user.org } : {};
+    const admins = await User.find({
+      ...orgFilter,
+      email: { $exists: true, $ne: "" },
+      // Uncomment or adjust if you filter admins by role:
+       role: { $in: ["adminlo", "Manager"] },
+    }).select("email username name org");
+
+    if (!admins || admins.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No admin recipients with valid emails found." });
+    }
+
+    const senderName =
+      req.user?.name || req.user?.username || "Service Coordinator";
+    const orgName = req.user?.org || "PresencePro";
+
+    // 3. Dispatch emails to all admins using sendUniversalMail
+    const results = await Promise.allSettled(
+      admins.map((admin) =>
+        sendUniversalMail("ADMIN_REPORT", {
+          recipientEmail: admin.email,
+          recipientName: admin.name || admin.username || "Admin",
+          subject: subject.trim(),
+          personOrg: orgName,
+          submittedBy: senderName,
+          segments: cleanSegments,
+        })
+      )
+    );
+
+    const sentCount = results.filter(
+      (r) => r.status === "fulfilled" && r.value !== null
+    ).length;
+
+    if (sentCount === 0) {
+      return res
+        .status(502)
+        .json({ message: "Failed to deliver report to any admin email." });
+    }
+
+    return res.status(200).json({
+      message: `Service report successfully dispatched to ${sentCount} admin(s).`,
+      sentCount,
+    });
+  } catch (error) {
+    console.error("Error in sendAdminReport controller:", error);
+    return res.status(500).json({
+      message: "Internal server error while sending admin report.",
+    });
+  }
+};
+
+
+
 // Lightweight health-check endpoint to keep the server warm
 const healthCheck = (req, res) => {
   console.log(
@@ -2836,5 +2923,6 @@ module.exports = {
   sendBirthdayEmails,
   healthCheck,
   getNewMembersByDate,
+  sendAdminReport
   // cleanupTodayDuplicates,
 };

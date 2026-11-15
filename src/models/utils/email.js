@@ -6,6 +6,7 @@ const forgetPasswordTemplate = require("../../EmailTemplates/forgetPasswordEmail
 const getWeMissedUTemplate = require("../../EmailTemplates/NewComersEmail");
 const forgotPasskeyTemplate = require("../../EmailTemplates/forgotpasskeyEmail");
 const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
+const getAdminServiceReportTemplate = require("../../EmailTemplates/adminServiceReportEmail"); // ✅ ADDED
 
 // configure transporter (example: Gmail)
 const transporter = nodemailer.createTransport({
@@ -49,7 +50,9 @@ const sendUniversalMail = async (type, options) => {
     otpCode,
     personOrg,
     custome,
-    resetToken
+    resetToken,
+    segments,     // ✅ ADDED
+    submittedBy,  // ✅ ADDED
   } = options;
   const currentYear = new Date().getFullYear();
 
@@ -75,7 +78,16 @@ const sendUniversalMail = async (type, options) => {
     htmlContent = forgetPasswordTemplate(custome, currentYear);
   } else if (type === "FORGOT_PASSKEY") {
     htmlContent = forgotPasskeyTemplate(resetToken, currentYear, personOrg);
-  } else {
+  } 
+   else if (type === "ADMIN_REPORT") {
+    // ✅ ADDED
+    htmlContent = getAdminServiceReportTemplate(
+      recipientName,
+      segments,
+      currentYear,
+      personOrg,
+      submittedBy
+    ) ;}else {
     throw new Error(`Unknown email template type requested: ${type}`);
   }
 
