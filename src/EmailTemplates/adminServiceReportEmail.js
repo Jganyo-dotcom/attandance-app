@@ -104,4 +104,4 @@ const getAdminServiceReportTemplate = (
   `;
 };
 
-module.exports = getAdminServiceReportTemplate;
+module.exports = getAdminServiceReportTemplate; 

@@ -21,6 +21,7 @@ const validationForCreateSchema = Joi.object({
   department: Joi.string().min(5).max(50).required(),
   level: Joi.string().min(5).max(50).default("N/A"),
   isNewMember: Joi.boolean().required(),
+  isVisitor: Joi.boolean().default(false),
   hasParentInChurch: Joi.boolean().required(),
   gender: Joi.string().required(),
   contact: Joi.string()
@@ -28,6 +29,13 @@ const validationForCreateSchema = Joi.object({
     .pattern(/^[0-9]+$/)
     .optional()
     .allow("", null),
+}).custom((value, helpers) => {
+  if (value.isNewMember && value.isVisitor) {
+    return helpers.message(
+      "A person cannot be both a New Member and a Visitor.",
+    );
+  }
+  return value;
 });
 
 const validationForPasswordChange = Joi.object({
@@ -52,7 +60,7 @@ const adminUpdate = Joi.object({
   name: Joi.string().min(5).required(),
   email: Joi.string().email().required(),
   username: Joi.string().min(3).required(),
-  avatarUrl: Joi.string().optional()
+  avatarUrl: Joi.string().optional(),
 });
 
 module.exports = {

@@ -56,6 +56,7 @@ const {
   healthCheck,
   getNewMembersByDate,
   getAllSessions,
+  getVisitorsByDate,
   // cleanupTodayDuplicates,
 } = require("./admin_user/controller");
 const {
@@ -168,6 +169,12 @@ router.get(
   authmiddleware,
   CheckroleonAll,
   getNewMembersByDate,
+);
+router.get(
+  "/admin/visitors",
+  authmiddleware,
+  CheckroleonAll,
+  getVisitorsByDate,
 );
 
 // route to get the staff pending accounts

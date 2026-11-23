@@ -686,6 +686,16 @@ const createPerson = async (req, res) => {
       return res.status(400).json({ error: error.details[0].message });
     }
 
+    const isVisitorFlag = Boolean(value.isVisitor ?? value.visitorStatus);
+    const isNewMemberFlag = Boolean(value.isNewMember);
+
+    // Backend guard: prevent a person from being both a New Member and a Visitor
+    if (isNewMemberFlag && isVisitorFlag) {
+      return res.status(400).json({
+        message: "A person cannot be both a New Member and a Visitor.",
+      });
+    }
+
     // Duplicate check only if contact provided
     if (value.contact) {
       const existingPhone = await People.findOne({ contact: value.contact });
@@ -717,6 +727,8 @@ const createPerson = async (req, res) => {
       gender: value.gender,
       memberType: value.memberType,
       count: nextCount,
+      isNewMember: isNewMemberFlag,
+      isVisitor: isVisitorFlag,
     };
 
     if (value.email) {
@@ -727,9 +739,12 @@ const createPerson = async (req, res) => {
       newPersonData.dob = value.dob;
     }
 
-    if (value.isNewMember) {
-      newPersonData.isNewMember = value.isNewMember;
+    if (isNewMemberFlag) {
       newPersonData.dateJoined = new Date().toISOString();
+    }
+
+    if (isVisitorFlag) {
+      newPersonData.dateVisited = new Date().toISOString();
     }
 
     if (value.hasParentInChurch) {
@@ -1016,7 +1031,7 @@ const updateDOBandProfilePicture = async (req, res) => {
 
     // Handles true/false logic for isParentInChurch safely
     if (isParentInChurch !== undefined) {
-      console.log(isParentInChurch)
+      console.log(isParentInChurch);
       const parentString = String(isParentInChurch).toLowerCase().trim();
       updateFields.isParentInChurch = parentString === "true";
     }
@@ -2789,8 +2804,73 @@ const getNewMembersByDate = async (req, res) => {
   }
 };
 
+const getVisitorsByDate = async (req, res) => {
+  try {
+    const People = req.db.model("People", peopleSchema);
+    const { type, value } = req.query;
 
+    if (!type || !value) {
+      return res.status(400).json({
+        message: "Missing query parameters. 'type' and 'value' are required.",
+      });
+    }
 
+    let startDate, endDate;
+
+    // 1. Calculate the start and end of the date window dynamically
+    if (type === "full") {
+      // value is "2026-07-06"
+      startDate = new Date(`${value}T00:00:00.000Z`);
+      endDate = new Date(`${value}T23:59:59.999Z`);
+    } else if (type === "month") {
+      // value is "2026-07"
+      const [year, month] = value.split("-");
+      startDate = new Date(
+        Date.UTC(parseInt(year, 10), parseInt(month, 10) - 1, 1, 0, 0, 0),
+      );
+      // Gets the exact last millisecond of that calendar month
+      endDate = new Date(
+        Date.UTC(parseInt(year, 10), parseInt(month, 10), 0, 23, 59, 59, 999),
+      );
+    } else if (type === "year") {
+      // value is "2026"
+      const yearNum = parseInt(value, 10);
+      startDate = new Date(Date.UTC(yearNum, 0, 1, 0, 0, 0));
+      endDate = new Date(Date.UTC(yearNum, 11, 31, 23, 59, 59, 999));
+    } else {
+      return res.status(400).json({ message: "Invalid type selection." });
+    }
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return res.status(400).json({ message: "Invalid date value provided." });
+    }
+
+    console.log(
+      `[Database Query - Visitors] Searching range from: ${startDate.toISOString()} to: ${endDate.toISOString()}`,
+    );
+
+    // 2. Query Mongoose for visitors within the date window
+    const visitors = await People.find({
+      isVisitor: true,
+      dateVisited: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+    }).sort({ name: 1 });
+
+    return res.status(200).json({
+      success: true,
+      count: visitors.length,
+      visitors,
+    });
+  } catch (err) {
+    console.error("Backend error filtering visitors:", err);
+    return res.status(500).json({
+      message: "Something went wrong while executing search criteria",
+      error: err.message,
+    });
+  }
+};
 const sendAdminReport = async (req, res) => {
   try {
     const User = connections.Main.model("User", UserSchema);
@@ -2826,8 +2906,10 @@ const sendAdminReport = async (req, res) => {
       ...orgFilter,
       email: { $exists: true, $ne: "" },
       // Uncomment or adjust if you filter admins by role:
-       role: { $in: ["Admin", "Manager"] },
-    }).select("email username name org").lean();
+      role: { $in: ["Admin", "Manager"] },
+    })
+      .select("email username name org")
+      .lean();
 
     if (!admins || admins.length === 0) {
       return res
@@ -2849,12 +2931,12 @@ const sendAdminReport = async (req, res) => {
           personOrg: orgName,
           submittedBy: senderName,
           segments: cleanSegments,
-        })
-      )
+        }),
+      ),
     );
 
     const sentCount = results.filter(
-      (r) => r.status === "fulfilled" && r.value !== null
+      (r) => r.status === "fulfilled" && r.value !== null,
     ).length;
 
     if (sentCount === 0) {
@@ -2874,8 +2956,6 @@ const sendAdminReport = async (req, res) => {
     });
   }
 };
-
-
 
 // Lightweight health-check endpoint to keep the server warm
 const healthCheck = (req, res) => {
@@ -2934,6 +3014,7 @@ module.exports = {
   sendBirthdayEmails,
   healthCheck,
   getNewMembersByDate,
-  sendAdminReport
+  sendAdminReport,
+  getVisitorsByDate,
   // cleanupTodayDuplicates,
 };
